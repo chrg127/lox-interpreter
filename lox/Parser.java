@@ -1,6 +1,7 @@
 package lox;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.util.function.Supplier;
 import static lox.Token.Type.*;
 
@@ -14,12 +15,51 @@ class Parser {
         this.tokens = tokens;
     }
 
-    public Expr parse() {
+    public List<Stmt> parse() {
+        List<Stmt> stmts = new ArrayList<>();
+        while (!isAtEnd()) {
+            stmts.add(decl());
+        }
+        return stmts;
+    }
+
+    private Stmt decl() {
         try {
-            return expression();
+            if (match(VAR))
+                return varDecl();
+            return stmt();
         } catch (ParseError error) {
+            synchronize();
             return null;
         }
+    }
+
+    private Stmt varDecl() {
+        Token name = consume(IDENT, "expected variable name");
+        Expr initializer = null;
+        if (match(EQ)) {
+            initializer = expression();
+        }
+        consume(SEMICOLON, "expected ';' after variable declaration");
+        return new Stmt.Var(name, initializer);
+    }
+
+    private Stmt stmt() {
+        if (match(PRINT))
+            return printStmt();
+        return expressionStmt();
+    }
+
+    private Stmt printStmt() {
+        Expr value = expression();
+        consume(SEMICOLON, "expected ';' after expression");
+        return new Stmt.Print(value);
+    }
+
+    private Stmt expressionStmt() {
+        Expr expr = expression();
+        consume(SEMICOLON, "expected ';' after expression");
+        return new Stmt.Expression(expr);
     }
 
     private Expr expression() {
@@ -71,6 +111,8 @@ class Parser {
         if (match(NIL))   return new Expr.Literal(null);
         if (match(NUMBER, STRING))
             return new Expr.Literal(previous().literal);
+        if (match(IDENT))
+            return new Expr.Variable(previous());
         if (match(LEFT_PAREN)) {
             Expr expr = expression();
             consume(RIGHT_PAREN, "expected ')' after expression");

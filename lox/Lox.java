@@ -51,10 +51,10 @@ public class Lox {
         var scanner = new lox.Scanner(source);
         List<Token> tokens = scanner.scanTokens();
         var parser = new Parser(tokens);
-        Expr expression = parser.parse();
+        List<Stmt> statements = parser.parse();
         if (hadError)
             return;
-        interpreter.interpret(expression);
+        interpreter.interpret(statements);
         // System.out.println(new ASTPrinter().print(expression));
     }
 

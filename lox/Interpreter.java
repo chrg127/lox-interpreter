@@ -1,10 +1,16 @@
 package lox;
 
-class Interpreter implements Expr.Visitor<Object> {
-    void interpret(Expr expression) {
+import java.util.List;
+
+class Interpreter implements Expr.Visitor<Object>,
+                             Stmt.Visitor<Void> {
+    private Environment env = new Environment();
+
+    public void interpret(List<Stmt> statements) {
         try {
-            Object value = eval(expression);
-            System.out.println(stringify(value));
+            for (var stmt : statements) {
+                execute(stmt);
+            }
         } catch (RuntimeError error) {
             Lox.runtimeError(error);
         }
@@ -65,6 +71,36 @@ class Interpreter implements Expr.Visitor<Object> {
 
     public Object visitTernaryExpr(Expr.Ternary expr) {
         return (isTruthy(eval(expr.cond))) ? eval(expr.left) : eval(expr.right);
+    }
+
+    @Override
+    public Object visitVariableExpr(Expr.Variable expr) {
+        return env.get(expr.name);
+    }
+
+    @Override
+    public Void visitExpressionStmt(Stmt.Expression stmt) {
+        eval(stmt.expression);
+        return null;
+    }
+
+    @Override
+    public Void visitPrintStmt(Stmt.Print stmt) {
+        Object value = eval(stmt.expression);
+        System.out.println(stringify(value));
+        return null;
+    }
+
+    @Override
+    public Void visitVarStmt(Stmt.Var stmt) {
+        Object value = stmt.initializer == null ? null
+                                                : eval(stmt.initializer);
+        env.define(stmt.name.lexeme, value);
+        return null;
+    }
+
+    private void execute(Stmt stmt) {
+        stmt.accept(this);
     }
 
     private Object eval(Expr expr) {

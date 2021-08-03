@@ -1,3 +1,16 @@
+program        : stmt* EOF ;
+
+decl           : var_decl
+               | stmt ;
+
+stmt           : expr_stmt
+               | print_stmt ;
+
+var_decl       : "var" IDENT ( "=" expression )? ";" ;
+
+expr_stmt      : expression ";" ;
+print_stmt     : "print" expression ";" ;
+
 expression     : comma ;
 comma          : ternary ( "," ternary )* ;
 ternary        : equality ( "?" expression ":" equality )? ;
@@ -8,5 +21,6 @@ factor         : unary ( ( "/" | "*" ) unary )* ;
 unary          : ( "!" | "-" ) unary
                | primary ;
 primary        : NUMBER | STRING | "true" | "false" | "nil"
-               | "(" expression ")" ;
+               | "(" expression ")"
+               | IDENT ;
 
