@@ -3,17 +3,20 @@ program        : stmt* EOF ;
 decl           : var_decl
                | stmt ;
 
-stmt           : expr_stmt
-               | print_stmt ;
-
 var_decl       : "var" IDENT ( "=" expression )? ";" ;
+
+stmt           : expr_stmt
+               | print_stmt
+               | block ;
 
 expr_stmt      : expression ";" ;
 print_stmt     : "print" expression ";" ;
+block          : "{" decl* "}" ;
 
 expression     : comma ;
-comma          : ternary ( "," ternary )* ;
-ternary        : equality ( "?" expression ":" equality )? ;
+comma          : equality ( "," equality )* ;
+assignment     : IDENT "=" assignment
+               | equality ;
 equality       : comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     : term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           : factor ( ( "-" | "+" | "&" | "|" ) factor )* ;

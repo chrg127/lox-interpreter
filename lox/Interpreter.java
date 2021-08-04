@@ -21,10 +21,12 @@ class Interpreter implements Expr.Visitor<Object>,
         return expr.value;
     }
 
+    @Override
     public Object visitGroupingExpr(Expr.Grouping expr) {
         return eval(expr.expression);
     }
 
+    @Override
     public Object visitUnaryExpr(Expr.Unary expr) {
         Object right = eval(expr.right);
 
@@ -40,6 +42,7 @@ class Interpreter implements Expr.Visitor<Object>,
         return null;
     }
 
+    @Override
     public Object visitBinaryExpr(Expr.Binary expr) {
         Object left  = eval(expr.left);
         Object right = eval(expr.right);
@@ -69,13 +72,16 @@ class Interpreter implements Expr.Visitor<Object>,
         return null;
     }
 
-    public Object visitTernaryExpr(Expr.Ternary expr) {
-        return (isTruthy(eval(expr.cond))) ? eval(expr.left) : eval(expr.right);
-    }
-
     @Override
     public Object visitVariableExpr(Expr.Variable expr) {
         return env.get(expr.name);
+    }
+
+    @Override
+    public Object visitAssignExpr(Expr.Assign expr) {
+        Object value = eval(expr.value);
+        env.assign(expr.name, value);
+        return value;
     }
 
     @Override
@@ -99,8 +105,25 @@ class Interpreter implements Expr.Visitor<Object>,
         return null;
     }
 
+    @Override
+    public Void visitBlockStmt(Stmt.Block stmt) {
+        execBlock(stmt.statements, new Environment(env));
+        return null;
+    }
+
     private void execute(Stmt stmt) {
         stmt.accept(this);
+    }
+
+    private void execBlock(List<Stmt> statements, Environment env) {
+        Environment prev = this.env;
+        try {
+            this.env = env;
+            for (var stmt : statements)
+                execute(stmt);
+        } finally {
+            this.env = prev;
+        }
     }
 
     private Object eval(Expr expr) {

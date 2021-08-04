@@ -68,8 +68,8 @@ class Scanner {
         case '*': addToken(STAR);           break;
         case '&': addToken(BITAND);         break;
         case '|': addToken(BITOR);          break;
-        case '?': addToken(QMARK);          break;
-        case ':': addToken(DCOLON);         break;
+        //case '?': addToken(QMARK);          break;
+        //case ':': addToken(DCOLON);         break;
 
         case '!': addToken(match('=') ? BANG_EQ : BANG);        break;
         case '=': addToken(match('=') ? EQ_EQ : EQ);            break;

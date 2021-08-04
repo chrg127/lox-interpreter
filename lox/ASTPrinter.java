@@ -1,12 +1,15 @@
 package lox;
 
-class ASTPrinter implements Expr.Visitor<String> {
-    String print(Expr expr) {
-        return expr.accept(this);
+import java.util.List;
+
+class ASTPrinter implements Expr.Visitor<String>,
+                            Stmt.Visitor<String> {
+    String run(Stmt stmt) {
+        return stmt.accept(this);
     }
 
-    public String visitTernaryExpr(Expr.Ternary expr) {
-        return parenthesize(expr.operator.lexeme, expr.cond, expr.left, expr.right);
+    String print(Expr expr) {
+        return expr.accept(this);
     }
 
     @Override
@@ -33,12 +36,40 @@ class ASTPrinter implements Expr.Visitor<String> {
 
     @Override
     public String visitVariableExpr(Expr.Variable expr) {
-        return null;
+        return expr.name.lexeme;
+    }
+
+    @Override
+    public String visitAssignExpr(Expr.Assign expr) {
+        return parenthesize("= " + expr.name.lexeme, expr.value);
+    }
+
+    @Override
+    public String visitExpressionStmt(Stmt.Expression stmt) {
+        return parenthesize("expr", stmt.expression);
+    }
+
+    @Override
+    public String visitPrintStmt(Stmt.Print stmt) {
+        return parenthesize("print", stmt.expression);
+    }
+
+    @Override
+    public String visitVarStmt(Stmt.Var stmt) {
+        return parenthesize("vardecl " + stmt.name.lexeme, stmt.initializer);
+    }
+
+    @Override
+    public String visitBlockStmt(Stmt.Block block) {
+        var builder = new StringBuilder();
+        builder.append("(block ");
+        for (var stmt : block.statements)
+            builder.append(stmt.accept(this)).append(" ");
+        return builder.append(")").toString();
     }
 
     private String parenthesize(String name, Expr... exprs) {
         var builder = new StringBuilder();
-
         builder.append("(").append(name);
         for (var expr : exprs) {
             builder.append(" ");
@@ -46,16 +77,5 @@ class ASTPrinter implements Expr.Visitor<String> {
         }
         builder.append(")");
         return builder.toString();
-    }
-
-    public void test() {
-        Expr expression = new Expr.Binary(
-            new Expr.Unary(
-                new Token(Token.Type.MINUS, "-", null, 1),
-                new Expr.Literal(123)),
-            new Token(Token.Type.STAR, "*", null, 1),
-            new Expr.Grouping(
-                new Expr.Literal(45.67)));
-        System.out.println(print(expression));
     }
 }

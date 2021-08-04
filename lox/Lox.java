@@ -55,7 +55,13 @@ public class Lox {
         if (hadError)
             return;
         interpreter.interpret(statements);
-        // System.out.println(new ASTPrinter().print(expression));
+        // printAST(statements);
+    }
+
+    private static void printAST(List<Stmt> statements) {
+        var printer = new ASTPrinter();
+        for (var stmt : statements)
+            System.out.println(printer.run(stmt));
     }
 
     static void error(int line, String message) {

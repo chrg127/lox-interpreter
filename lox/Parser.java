@@ -47,6 +47,8 @@ class Parser {
     private Stmt stmt() {
         if (match(PRINT))
             return printStmt();
+        if (match(LEFT_BRACE))
+            return new Stmt.Block(block());
         return expressionStmt();
     }
 
@@ -54,6 +56,15 @@ class Parser {
         Expr value = expression();
         consume(SEMICOLON, "expected ';' after expression");
         return new Stmt.Print(value);
+    }
+
+    private List<Stmt> block() {
+        List<Stmt> statements = new ArrayList<>();
+        while (!check(RIGHT_BRACE) && !isAtEnd()) {
+            statements.add(decl());
+        }
+        consume(RIGHT_BRACE, "expected '}' after block");
+        return statements;
     }
 
     private Stmt expressionStmt() {
@@ -77,7 +88,22 @@ class Parser {
     }
 
     private Expr comma() {
-        return binaryOp(this::ternary, COMMA);
+        return binaryOp(this::assignment, COMMA);
+    }
+
+    private Expr assignment() {
+        Expr expr = equality();
+
+        if (match(EQ)) {
+            Token eq = previous();
+            Expr value = assignment();
+            if (expr instanceof Expr.Variable) {
+                Token name = ((Expr.Variable)expr).name;
+                return new Expr.Assign(name, value);
+            }
+            error(eq, "invalid assignment target");
+        }
+        return expr;
     }
 
     private Expr equality() {
@@ -119,19 +145,6 @@ class Parser {
             return new Expr.Grouping(expr);
         }
         throw error(peek(), "expected primary expression");
-    }
-
-    private Expr ternary() {
-        Expr expr = equality();
-        if (match(QMARK)) {
-            Token op = previous();
-            Expr left = expression();
-            if (!match(DCOLON))
-                throw error(peek(), "expected ':' operator");
-            Expr right = equality();
-            return new Expr.Ternary(op, expr, left, right);
-        }
-        return expr;
     }
 
     private boolean match(Token.Type... types) {
