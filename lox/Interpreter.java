@@ -22,6 +22,19 @@ class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
+    public Object visitLogicalExpr(Expr.Logical expr) {
+        Object left = eval(expr.left);
+        if (expr.operator.type == Token.Type.OR) {
+            if (isTruthy(left))
+                return left;
+        } else {
+            if (!isTruthy(left))
+                return left;
+        }
+        return eval(expr.right);
+    }
+
+    @Override
     public Object visitGroupingExpr(Expr.Grouping expr) {
         return eval(expr.expression);
     }
@@ -91,6 +104,15 @@ class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
+    public Void visitIfStmt(Stmt.If stmt) {
+        if (isTruthy(eval(stmt.cond)))
+            execute(stmt.thenBranch);
+        else if (stmt.elseBranch != null)
+            execute(stmt.elseBranch);
+        return null;
+    }
+
+    @Override
     public Void visitPrintStmt(Stmt.Print stmt) {
         Object value = eval(stmt.expression);
         System.out.println(stringify(value));
@@ -102,6 +124,14 @@ class Interpreter implements Expr.Visitor<Object>,
         Object value = stmt.initializer == null ? null
                                                 : eval(stmt.initializer);
         env.define(stmt.name.lexeme, value);
+        return null;
+    }
+
+    @Override
+    public Void visitWhileStmt(Stmt.While stmt) {
+        while (isTruthy(eval(stmt.cond))) {
+            execute(stmt.body);
+        }
         return null;
     }
 

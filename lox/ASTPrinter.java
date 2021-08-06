@@ -45,6 +45,11 @@ class ASTPrinter implements Expr.Visitor<String>,
     }
 
     @Override
+    public String visitLogicalExpr(Expr.Logical expr) {
+        return parenthesize(expr.operator.lexeme, expr.left, expr.right);
+    }
+
+    @Override
     public String visitExpressionStmt(Stmt.Expression stmt) {
         return parenthesize("expr", stmt.expression);
     }
@@ -66,6 +71,19 @@ class ASTPrinter implements Expr.Visitor<String>,
         for (var stmt : block.statements)
             builder.append(stmt.accept(this)).append(" ");
         return builder.append(")").toString();
+    }
+
+    @Override
+    public String visitIfStmt(Stmt.If stmt) {
+        String thenBranch = run(stmt.thenBranch);
+        String elseBranch = run(stmt.elseBranch);
+        String cond = print(stmt.cond);
+        return "(if " + cond + " " + thenBranch + " " + elseBranch + ")";
+    }
+
+    @Override
+    public String visitWhileStmt(Stmt.While stmt) {
+        return "(while " + print(stmt.cond) + " " + run(stmt.body) + ")";
     }
 
     private String parenthesize(String name, Expr... exprs) {

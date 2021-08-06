@@ -6,17 +6,26 @@ decl           : var_decl
 var_decl       : "var" IDENT ( "=" expression )? ";" ;
 
 stmt           : expr_stmt
+               | forStmt
+               | if_stmt
                | print_stmt
+               | while_stmt
                | block ;
 
 expr_stmt      : expression ";" ;
+forStmt        : "for" "(" ( var_decl | expr_stmt | ";" )
+                 expression? ";" expression? ")" stmt ;
+if_stmt        : "if" "(" expression ")" stmt ( "else" stmt )? ;
 print_stmt     : "print" expression ";" ;
+while_stmt     : "while" "(" expression ")" stmt ;
 block          : "{" decl* "}" ;
 
 expression     : comma ;
-comma          : equality ( "," equality )* ;
+comma          : assignment ( "," assignment )* ;
 assignment     : IDENT "=" assignment
-               | equality ;
+               | logic_or ;
+logic_or       : logic_and ( "or" logic_and )* ;
+logic_and      : equality ( "and" equality )* ;
 equality       : comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     : term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           : factor ( ( "-" | "+" | "&" | "|" ) factor )* ;
