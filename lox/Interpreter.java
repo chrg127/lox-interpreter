@@ -75,7 +75,7 @@ class Interpreter implements Expr.Visitor<Object>,
         case GREATER:    checkNums(expr.operator, left, right); return (double)left >  (double)right;
         case GREATER_EQ: checkNums(expr.operator, left, right); return (double)left >= (double)right;
         case LESS:       checkNums(expr.operator, left, right); return (double)left <  (double)right;
-        case LESS_EQ:    checkNums(expr.operator, left, right); return (double)left >= (double)right;
+        case LESS_EQ:    checkNums(expr.operator, left, right); return (double)left <= (double)right;
         case BANG_EQ:    return !isEqual(left, right);
         case EQ_EQ:      return  isEqual(left, right);
         case COMMA:      return right;
