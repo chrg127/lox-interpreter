@@ -1,10 +1,26 @@
 package lox;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 class Interpreter implements Expr.Visitor<Object>,
                              Stmt.Visitor<Void> {
     private Environment env = new Environment();
+    final Environment globals = env;
+
+    public Interpreter() {
+        globals.define("clock", new LoxCallable() {
+            @Override
+            public int arity() { return 0; }
+            public Object call(Interpreter interpreter,
+                               List<Object> arguments) {
+                return (double)System.currentTimeMillis() / 1000.0;
+            }
+            @Override
+            public String toString() { return "<native fn clock>"; }
+        });
+    }
 
     public void interpret(List<Stmt> statements) {
         try {
@@ -86,6 +102,26 @@ class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
+    public Object visitCallExpr(Expr.Call expr) {
+        Object callee = eval(expr.callee);
+        var args = expr.arguments.stream()
+                            .map(a -> eval(a))
+                            .collect(Collectors.toList());
+        // List<Object> args = new ArrayList<>();
+        // for (var arg : expr.arguments)
+        //     args.add(eval(arg));
+        if (!(callee instanceof LoxCallable))
+            throw new RuntimeError(expr.paren,
+                "can only call functions and classes");
+        LoxCallable function = (LoxCallable)callee;
+        if (args.size() != function.arity())
+            throw new RuntimeError(expr.paren,
+                "expected " + function.arity() + "arguments, but got " +
+                args.size());
+        return function.call(this, args);
+    }
+
+    @Override
     public Object visitVariableExpr(Expr.Variable expr) {
         return env.get(expr.name);
     }
@@ -104,6 +140,13 @@ class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
+    public Void visitFunctionStmt(Stmt.Function stmt) {
+        LoxFunction function = new LoxFunction(stmt, env);
+        env.define(stmt.name.lexeme, function);
+        return null;
+    }
+
+    @Override
     public Void visitIfStmt(Stmt.If stmt) {
         if (isTruthy(eval(stmt.cond)))
             execute(stmt.thenBranch);
@@ -117,6 +160,12 @@ class Interpreter implements Expr.Visitor<Object>,
         Object value = eval(stmt.expression);
         System.out.println(stringify(value));
         return null;
+    }
+
+    @Override
+    public Void visitReturnStmt(Stmt.Return stmt) {
+        Object value = stmt.value == null ? null : eval(stmt.value);
+        throw new Return(value);
     }
 
     @Override
@@ -145,7 +194,7 @@ class Interpreter implements Expr.Visitor<Object>,
         stmt.accept(this);
     }
 
-    private void execBlock(List<Stmt> statements, Environment env) {
+    void execBlock(List<Stmt> statements, Environment env) {
         Environment prev = this.env;
         try {
             this.env = env;

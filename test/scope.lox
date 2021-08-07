@@ -23,3 +23,10 @@ var c = "global c";
 print a;
 print b;
 print c;
+
+fun scope(a) {
+    var a = "local";
+    print a;
+}
+
+scope(1);

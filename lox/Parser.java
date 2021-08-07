@@ -26,8 +26,8 @@ class Parser {
 
     private Stmt decl() {
         try {
-            if (match(VAR))
-                return varDecl();
+            if (match(VAR)) return varDecl();
+            if (match(FUN)) return function("function");
             return stmt();
         } catch (ParseError error) {
             synchronize();
@@ -49,6 +49,7 @@ class Parser {
         if (match(FOR))        return forStmt();
         if (match(IF))         return ifStmt();
         if (match(PRINT))      return printStmt();
+        if (match(RETURN))     return returnStmt();
         if (match(WHILE))      return whileStmt();
         if (match(LEFT_BRACE)) return new Stmt.Block(block());
         return expressionStmt();
@@ -98,6 +99,15 @@ class Parser {
         return new Stmt.Print(value);
     }
 
+    private Stmt returnStmt() {
+        Token keyword = previous();
+        Expr value = null;
+        if (!check(SEMICOLON))
+            value = expression();
+        consume(SEMICOLON, "expected ';' after return value");
+        return new Stmt.Return(keyword, value);
+    }
+
     private Stmt whileStmt() {
         consume(LEFT_PAREN, "expected '(' after 'while'");
         Expr cond = expression();
@@ -121,8 +131,25 @@ class Parser {
         return new Stmt.Expression(expr);
     }
 
+    private Stmt.Function function(String kind) {
+        Token name = consume(IDENT, "expected " + kind + " name");
+        consume(LEFT_PAREN, "expected '(' after " + kind + " name");
+        List<Token> params = new ArrayList<>();
+        if (!check(RIGHT_PAREN)) {
+            do {
+                if (params.size() >= 255)
+                    error(peek(), "can't have more than 255 parameters");
+                params.add(consume(IDENT, "expected parameter name"));
+            } while(match(COMMA));
+        }
+        consume(RIGHT_PAREN, "expected ')' after parameters");
+        consume(LEFT_BRACE, "expected '{' before " + kind + " body");
+        List<Stmt> body = block();
+        return new Stmt.Function(name, params, body);
+    }
+
     private Expr expression() {
-        return comma();
+        return assignment();
     }
 
     private Expr binaryOp(Supplier<Expr> operandExpr, Token.Type... types) {
@@ -196,7 +223,31 @@ class Parser {
             Expr right = unary();
             return new Expr.Unary(op, right);
         }
-        return primary();
+        return call();
+    }
+
+    private Expr call() {
+        Expr expr = primary();
+        while (true) {
+            if (match(LEFT_PAREN))
+                expr = finishCall(expr);
+            else
+                break;
+        }
+        return expr;
+    }
+
+    private Expr finishCall(Expr callee) {
+        List<Expr> args = new ArrayList<>();
+        if (!check(RIGHT_PAREN)) {
+            do {
+                if (args.size() >= 255)
+                    error(peek(), "can't have more than 255 arguments");
+                args.add(expression());
+            } while (match(COMMA));
+        }
+        Token paren = consume(RIGHT_PAREN, "expected ')' after arguments");
+        return new Expr.Call(callee, paren, args);
     }
 
     private Expr primary() {

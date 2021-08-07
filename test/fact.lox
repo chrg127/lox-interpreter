@@ -1,5 +1,0 @@
-var n = 5; // number to be calculated
-var res = 1;
-for (var i = 1; i <= n; i = i + 1)
-    res = res * i;
-print res;

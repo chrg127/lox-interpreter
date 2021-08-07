@@ -18,6 +18,18 @@ class ASTPrinter implements Expr.Visitor<String>,
     }
 
     @Override
+    public String visitCallExpr(Expr.Call expr) {
+        var builder = new StringBuilder();
+        builder.append("(").append(expr.callee.accept(this));
+        for (var e : expr.arguments) {
+            builder.append(" ");
+            builder.append(e.accept(this));
+        }
+        builder.append(")");
+        return builder.toString();
+    }
+
+    @Override
     public String visitGroupingExpr(Expr.Grouping expr) {
         return parenthesize("group", expr.expression);
     }
@@ -55,8 +67,26 @@ class ASTPrinter implements Expr.Visitor<String>,
     }
 
     @Override
+    public String visitFunctionStmt(Stmt.Function stmt) {
+        var builder = new StringBuilder();
+        builder.append("(fun ").append(stmt.name.lexeme).append(" (args ");
+        for (var param : stmt.params)
+            builder.append(param.lexeme).append(" ");
+        builder.append(") (body ");
+        for (var bodystmt : stmt.body)
+            builder.append(bodystmt.accept(this)).append(" ");
+        builder.append("))");
+        return builder.toString();
+    }
+
+    @Override
     public String visitPrintStmt(Stmt.Print stmt) {
         return parenthesize("print", stmt.expression);
+    }
+
+    @Override
+    public String visitReturnStmt(Stmt.Return stmt) {
+        return parenthesize("return", stmt.value);
     }
 
     @Override

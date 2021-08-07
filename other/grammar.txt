@@ -1,14 +1,20 @@
 program        : stmt* EOF ;
 
 decl           : var_decl
+               | fun_decl
                | stmt ;
 
 var_decl       : "var" IDENT ( "=" expression )? ";" ;
+
+fun_decl       : "fun" function ;
+function       : IDENT "(" params? ")" block ;
+parameters     : IDENT ( "," IDENT )* ;
 
 stmt           : expr_stmt
                | forStmt
                | if_stmt
                | print_stmt
+               | return_stmt
                | while_stmt
                | block ;
 
@@ -17,6 +23,7 @@ forStmt        : "for" "(" ( var_decl | expr_stmt | ";" )
                  expression? ";" expression? ")" stmt ;
 if_stmt        : "if" "(" expression ")" stmt ( "else" stmt )? ;
 print_stmt     : "print" expression ";" ;
+return_stmt    : "return" expression? ";" ;
 while_stmt     : "while" "(" expression ")" stmt ;
 block          : "{" decl* "}" ;
 
@@ -31,7 +38,9 @@ comparison     : term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           : factor ( ( "-" | "+" | "&" | "|" ) factor )* ;
 factor         : unary ( ( "/" | "*" ) unary )* ;
 unary          : ( "!" | "-" ) unary
-               | primary ;
+               | call ;
+call           : primary ( "(" arguments? ")" )* ;
+arguments      : expression ( "," expression )* ;
 primary        : NUMBER | STRING | "true" | "false" | "nil"
                | "(" expression ")"
                | IDENT ;
