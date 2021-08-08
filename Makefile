@@ -1,4 +1,4 @@
-_files := Lox.class Scanner.class Token.class ASTPrinter.class \
+_files := Lox.class Scanner.class Token.class ASTPrinter.class Resolver.class \
 		  Parser.class Interpreter.class Environment.class \
 		  LoxCallable.class LoxFunction.class Return.class RuntimeError.class \
 		  Expr.class Stmt.class

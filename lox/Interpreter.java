@@ -2,12 +2,15 @@ package lox;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 
 class Interpreter implements Expr.Visitor<Object>,
                              Stmt.Visitor<Void> {
     private Environment env = new Environment();
     final Environment globals = env;
+    private final Map<Expr, Integer> locals = new HashMap<>();
 
     public Interpreter() {
         globals.define("clock", new LoxCallable() {
@@ -123,13 +126,25 @@ class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Object visitVariableExpr(Expr.Variable expr) {
-        return env.get(expr.name);
+        return lookupVariable(expr.name, expr);
+    }
+
+    private Object lookupVariable(Token name, Expr expr) {
+        Integer dist = locals.get(expr);
+        if (dist != null)
+            return env.getAt(dist, name.lexeme);
+        else
+            return globals.get(name);
     }
 
     @Override
     public Object visitAssignExpr(Expr.Assign expr) {
         Object value = eval(expr.value);
-        env.assign(expr.name, value);
+        Integer dist = locals.get(expr);
+        if (dist != null)
+            env.assignAt(dist, expr.name, value);
+        else
+            globals.assign(expr.name, value);
         return value;
     }
 
@@ -192,6 +207,10 @@ class Interpreter implements Expr.Visitor<Object>,
 
     private void execute(Stmt stmt) {
         stmt.accept(this);
+    }
+
+    void resolve(Expr expr, int depth) {
+        locals.put(expr, depth);
     }
 
     void execBlock(List<Stmt> statements, Environment env) {

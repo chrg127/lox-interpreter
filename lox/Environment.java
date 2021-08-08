@@ -19,6 +19,21 @@ class Environment {
         values.put(name, value);
     }
 
+    Object getAt(int dist, String name) {
+        return ancestor(dist).values.get(name);
+    }
+
+    void assignAt(int dist, Token name, Object value) {
+        ancestor(dist).values.put(name.lexeme, value);
+    }
+
+    Environment ancestor(int dist) {
+        Environment env = this;
+        for (int i = 0; i < dist; i++)
+            env = env.enclosing;
+        return env;
+    }
+
     Object get(Token name) {
         if (values.containsKey(name.lexeme))
             return values.get(name.lexeme);

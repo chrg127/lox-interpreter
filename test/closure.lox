@@ -1,0 +1,27 @@
+var a = "global";
+
+{
+    fun showA() {
+        print a;
+    }
+
+    showA();
+    var a = "block";
+    showA();
+}
+
+fun get() {
+    fun f() {
+        return i;
+    }
+    return f;
+}
+
+var myfun = get();
+//var i = 4;
+//print myfun();
+
+{
+    var i = 5;
+    print myfun();
+}
