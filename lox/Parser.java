@@ -27,6 +27,7 @@ class Parser {
     private Stmt decl() {
         try {
             if (match(VAR)) return varDecl();
+            if (match(CLASS)) return classDecl();
             if (match(FUN)) return function("function");
             return stmt();
         } catch (ParseError error) {
@@ -43,6 +44,16 @@ class Parser {
         }
         consume(SEMICOLON, "expected ';' after variable declaration");
         return new Stmt.Var(name, initializer);
+    }
+
+    private Stmt classDecl() {
+        Token name = consume(IDENT, "expected class name");
+        consume(LEFT_BRACE, "expected '{' before class body");
+        List<Stmt.Function> methods = new ArrayList<>();
+        while (!check(RIGHT_BRACE) && !isAtEnd())
+            methods.add(function("method"));
+        consume(RIGHT_BRACE, "expected '}' after class body");
+        return new Stmt.Class(name, methods);
     }
 
     private Stmt stmt() {
@@ -175,6 +186,9 @@ class Parser {
             if (expr instanceof Expr.Variable) {
                 Token name = ((Expr.Variable)expr).name;
                 return new Expr.Assign(name, value);
+            } else if (expr instanceof Expr.Get) {
+                Expr.Get get = (Expr.Get) expr;
+                return new Expr.Set(get.object, get.name, value);
             }
             error(eq, "invalid assignment target");
         }
@@ -231,7 +245,10 @@ class Parser {
         while (true) {
             if (match(LEFT_PAREN))
                 expr = finishCall(expr);
-            else
+            else if (match(DOT)) {
+                Token name = consume(IDENT, "expected property name after '.'");
+                expr = new Expr.Get(expr, name);
+            } else
                 break;
         }
         return expr;

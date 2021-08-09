@@ -10,6 +10,7 @@ abstract class Stmt {
         T visitPrintStmt(Print stmt);
         T visitReturnStmt(Return stmt);
         T visitBlockStmt(Block stmt);
+        T visitClassStmt(Class stmt);
         T visitVarStmt(Var stmt);
         T visitWhileStmt(While stmt);
     }
@@ -99,6 +100,21 @@ abstract class Stmt {
         @Override
         <T> T accept(Visitor<T> visitor) {
             return visitor.visitBlockStmt(this);
+        }
+    }
+
+    static class Class extends Stmt {
+        final Token name;
+        final List<Stmt.Function> methods;
+
+        Class(Token name, List<Stmt.Function> methods) {
+            this.name = name;
+            this.methods = methods;
+        }
+
+        @Override
+        <T> T accept(Visitor<T> visitor) {
+            return visitor.visitClassStmt(this);
         }
     }
 

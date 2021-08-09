@@ -1,10 +1,13 @@
 program        : stmt* EOF ;
 
 decl           : var_decl
+               | class_decl
                | fun_decl
                | stmt ;
 
 var_decl       : "var" IDENT ( "=" expression )? ";" ;
+
+class_decl     : "class" IDENT "{" function* "}" ;
 
 fun_decl       : "fun" function ;
 function       : IDENT "(" params? ")" block ;
@@ -28,7 +31,7 @@ while_stmt     : "while" "(" expression ")" stmt ;
 block          : "{" decl* "}" ;
 
 expression     : assignment ;
-assignment     : IDENT "=" assignment
+assignment     : ( call "." )? IDENT "=" assignment
                | logic_or ;
 logic_or       : logic_and ( "or" logic_and )* ;
 logic_and      : equality ( "and" equality )* ;
@@ -38,7 +41,7 @@ term           : factor ( ( "-" | "+" | "&" | "|" ) factor )* ;
 factor         : unary ( ( "/" | "*" ) unary )* ;
 unary          : ( "!" | "-" ) unary
                | call ;
-call           : primary ( "(" arguments? ")" )* ;
+call           : primary ( "(" arguments? ")" | "." IDENT )* ;
 arguments      : expression ( "," expression )* ;
 primary        : NUMBER | STRING | "true" | "false" | "nil"
                | "(" expression ")"

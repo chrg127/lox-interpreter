@@ -110,18 +110,30 @@ class Interpreter implements Expr.Visitor<Object>,
         var args = expr.arguments.stream()
                             .map(a -> eval(a))
                             .collect(Collectors.toList());
-        // List<Object> args = new ArrayList<>();
-        // for (var arg : expr.arguments)
-        //     args.add(eval(arg));
         if (!(callee instanceof LoxCallable))
-            throw new RuntimeError(expr.paren,
-                "can only call functions and classes");
+            throw new RuntimeError(expr.paren, "can only call functions and classes");
         LoxCallable function = (LoxCallable)callee;
         if (args.size() != function.arity())
-            throw new RuntimeError(expr.paren,
-                "expected " + function.arity() + "arguments, but got " +
-                args.size());
+            throw new RuntimeError(expr.paren, "expected " + function.arity() + "arguments, but got " + args.size());
         return function.call(this, args);
+    }
+
+    @Override
+    public Object visitGetExpr(Expr.Get expr) {
+        Object obj = eval(expr.object);
+        if (obj instanceof LoxInstance)
+            return ((LoxInstance) obj).get(expr.name);
+        throw new RuntimeError(expr.name, "only instances have properties");
+    }
+
+    @Override
+    public Object visitSetExpr(Expr.Set expr) {
+        Object obj = eval(expr.object);
+        if (!(obj instanceof LoxInstance))
+            throw new RuntimeError(expr.name, "only instances have fields.");
+        Object value = eval(expr.value);
+        ((LoxInstance) obj).set(expr.name, value);
+        return value;
     }
 
     @Override
@@ -202,6 +214,14 @@ class Interpreter implements Expr.Visitor<Object>,
     @Override
     public Void visitBlockStmt(Stmt.Block stmt) {
         execBlock(stmt.statements, new Environment(env));
+        return null;
+    }
+
+    @Override
+    public Void visitClassStmt(Stmt.Class stmt) {
+        env.define(stmt.name.lexeme, null);
+        LoxClass klass = new LoxClass(stmt.name.lexeme);
+        env.assign(stmt.name, klass);
         return null;
     }
 

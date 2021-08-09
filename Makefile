@@ -1,7 +1,8 @@
-_files := Lox.class Scanner.class Token.class ASTPrinter.class Resolver.class \
-		  Parser.class Interpreter.class Environment.class \
-		  LoxCallable.class LoxFunction.class Return.class RuntimeError.class \
-		  Expr.class Stmt.class
+_files := ASTPrinter.class Environment.class Expr.class Interpreter.class \
+		  Lox.class LoxCallable.class LoxFunction.class LoxClass.class \
+		  LoxInstance.class Parser.class Resolver.class Return.class \
+		  RuntimeError.class Scanner.class Stmt.class Token.class
+
 files := $(patsubst %,build/lox/%,$(_files))
 generated := lox/Expr.java lox/Stmt.java
 
