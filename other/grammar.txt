@@ -11,7 +11,7 @@ function       : IDENT "(" params? ")" block ;
 parameters     : IDENT ( "," IDENT )* ;
 
 stmt           : expr_stmt
-               | forStmt
+               | for_stmt
                | if_stmt
                | print_stmt
                | return_stmt
@@ -19,7 +19,7 @@ stmt           : expr_stmt
                | block ;
 
 expr_stmt      : expression ";" ;
-forStmt        : "for" "(" ( var_decl | expr_stmt | ";" )
+for_stmt        : "for" "(" ( var_decl | expr_stmt | ";" )
                  expression? ";" expression? ")" stmt ;
 if_stmt        : "if" "(" expression ")" stmt ( "else" stmt )? ;
 print_stmt     : "print" expression ";" ;
@@ -27,8 +27,7 @@ return_stmt    : "return" expression? ";" ;
 while_stmt     : "while" "(" expression ")" stmt ;
 block          : "{" decl* "}" ;
 
-expression     : comma ;
-comma          : assignment ( "," assignment )* ;
+expression     : assignment ;
 assignment     : IDENT "=" assignment
                | logic_or ;
 logic_or       : logic_and ( "or" logic_and )* ;
