@@ -1,0 +1,31 @@
+class Thing {
+    getCallback() {
+        fun localFunction() {
+            print "i am a:";
+            print this;
+        }
+        return localFunction;
+    }
+}
+
+var callback = Thing().getCallback();
+callback();
+
+class CPU {
+    init() {
+        this.acc = 0;
+    }
+
+    add() {
+        this.acc = this.acc + 1;
+    }
+
+    get() {
+        return this.acc;
+    }
+}
+
+var cpu = CPU();
+cpu.add();
+cpu.add();
+print cpu.get();

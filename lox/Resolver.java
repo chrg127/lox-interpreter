@@ -9,10 +9,11 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     private final Interpreter interpreter;
     private final Stack<Map<String, Boolean>> scopes = new Stack<>();
 
-    private enum FunctionType {
-        NONE, FUNCTION
-    }
+    private enum FunctionType { NONE, FUNCTION, CTOR, METHOD }
+    private enum ClassType    { NONE, CLASS }
+
     private FunctionType currFunc = FunctionType.NONE;
+    private ClassType currClass = ClassType.NONE;
 
     Resolver(Interpreter interpreter) {
         this.interpreter = interpreter;
@@ -28,8 +29,19 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitClassStmt(Stmt.Class stmt) {
+        ClassType enclosing = currClass;
+        currClass = ClassType.CLASS;
         declare(stmt.name);
         define(stmt.name);
+        beginScope();
+        scopes.peek().put("this", true);
+        for (var method : stmt.methods) {
+            FunctionType decl = method.name.lexeme.equals("init") ?
+                                FunctionType.CTOR : FunctionType.METHOD;
+            resolveFunction(method, decl);
+        }
+        endScope();
+        currClass = enclosing;
         return null;
     }
 
@@ -94,8 +106,11 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         if (currFunc == FunctionType.NONE) {
             Lox.error(stmt.keyword, "invalid return statement on global scope");
         }
-        if (stmt.value != null)
+        if (stmt.value != null) {
+            if (currFunc == FunctionType.CTOR)
+                Lox.error(stmt.keyword, "can't return value from constructor");
             resolve(stmt.value);
+        }
         return null;
     }
 
@@ -149,6 +164,14 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     public Void visitLogicalExpr(Expr.Logical expr) {
         resolve(expr.left);
         resolve(expr.right);
+        return null;
+    }
+
+    @Override
+    public Void visitThisExpr(Expr.This expr) {
+        if (currClass == ClassType.NONE)
+            Lox.error(expr.keyword, "can't use 'this' outside a class");
+        resolveLocal(expr, expr.keyword);
         return null;
     }
 
