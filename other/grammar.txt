@@ -7,7 +7,7 @@ decl           : var_decl
 
 var_decl       : "var" IDENT ( "=" expression )? ";" ;
 
-class_decl     : "class" IDENT "{" function* "}" ;
+class_decl     : "class" IDENT ( "<" IDENT )? "{" function* "}" ;
 
 fun_decl       : "fun" function ;
 function       : IDENT "(" params? ")" block ;
@@ -43,7 +43,12 @@ unary          : ( "!" | "-" ) unary
                | call ;
 call           : primary ( "(" arguments? ")" | "." IDENT )* ;
 arguments      : expression ( "," expression )* ;
-primary        : NUMBER | STRING | "true" | "false" | "nil"
+primary        : NUMBER
+               | STRING
+               | "true"
+               | "false"
+               | "nil"
                | "(" expression ")"
-               | IDENT ;
+               | IDENT 
+               | "super" "." IDENT ;
 

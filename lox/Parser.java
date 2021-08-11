@@ -48,12 +48,17 @@ class Parser {
 
     private Stmt classDecl() {
         Token name = consume(IDENT, "expected class name");
+        Expr.Variable superclass = null;
+        if (match(LESS)) {
+            consume(IDENT, "expected superclass name after '<'");
+            superclass = new Expr.Variable(previous());
+        }
         consume(LEFT_BRACE, "expected '{' before class body");
         List<Stmt.Function> methods = new ArrayList<>();
         while (!check(RIGHT_BRACE) && !isAtEnd())
             methods.add(function("method"));
         consume(RIGHT_BRACE, "expected '}' after class body");
-        return new Stmt.Class(name, methods);
+        return new Stmt.Class(name, superclass, methods);
     }
 
     private Stmt stmt() {
@@ -279,6 +284,12 @@ class Parser {
             Expr expr = expression();
             consume(RIGHT_PAREN, "expected ')' after expression");
             return new Expr.Grouping(expr);
+        }
+        if (match(SUPER)) {
+            Token keyword = previous();
+            consume(DOT, "expected '.' after 'super'");
+            Token method = consume(IDENT, "expected superclass method name");
+            return new Expr.Super(keyword, method);
         }
         throw error(peek(), "expected primary expression");
     }

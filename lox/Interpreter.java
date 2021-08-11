@@ -142,6 +142,18 @@ class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
+    public Object visitSuperExpr(Expr.Super expr) {
+        int dist = locals.get(expr);
+        LoxClass superclass = (LoxClass) env.getAt(dist, "super");
+        LoxInstance obj = (LoxInstance) env.getAt(dist - 1, "this");
+        LoxFunction method = superclass.findMethod(expr.method.lexeme);
+        if (method == null)
+            throw new RuntimeError(expr.method, "undefined property '" +
+                    expr.method.lexeme + "'");
+        return method.bind(obj);
+    }
+
+    @Override
     public Object visitVariableExpr(Expr.Variable expr) {
         return lookupVariable(expr.name, expr);
     }
@@ -224,14 +236,28 @@ class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Void visitClassStmt(Stmt.Class stmt) {
+        Object superclass = null;
+        if (stmt.superclass != null) {
+            superclass = eval(stmt.superclass);
+            if (!(superclass instanceof LoxClass))
+                throw new RuntimeError(stmt.superclass.name,
+                        "superclass must be a class");
+        }
         env.define(stmt.name.lexeme, null);
+        if (stmt.superclass != null) {
+            env = new Environment(env);
+            env.define("super", superclass);
+        }
         Map<String, LoxFunction> methods = new HashMap<>();
         for (var method : stmt.methods) {
             LoxFunction function = new LoxFunction(method, env,
                     method.name.lexeme.equals("init"));
             methods.put(method.name.lexeme, function);
         }
-        LoxClass klass = new LoxClass(stmt.name.lexeme, methods);
+        LoxClass klass = new LoxClass(stmt.name.lexeme,
+                (LoxClass) superclass, methods);
+        if (superclass != null)
+            env = env.enclosing;
         env.assign(stmt.name, klass);
         return null;
     }

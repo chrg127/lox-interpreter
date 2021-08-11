@@ -29,3 +29,17 @@ var cpu = CPU();
 cpu.add();
 cpu.add();
 print cpu.get();
+
+
+class Animal {
+    say() {
+        print "hi";
+    }
+}
+
+class Monkey < Animal { }
+
+var m = Monkey();
+m.say();
+
+
