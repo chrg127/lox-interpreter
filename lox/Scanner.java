@@ -36,7 +36,7 @@ class Scanner {
         keywords.put("while",  WHILE);
     }
 
-    Scanner(String source) {
+    public Scanner(final String source) {
         this.source = source;
     }
 
@@ -68,18 +68,18 @@ class Scanner {
         case '*': addToken(STAR);           break;
         case '&': addToken(BITAND);         break;
         case '|': addToken(BITOR);          break;
-        //case '?': addToken(QMARK);          break;
-        //case ':': addToken(DCOLON);         break;
 
-        case '!': addToken(match('=') ? BANG_EQ : BANG);        break;
-        case '=': addToken(match('=') ? EQ_EQ : EQ);            break;
-        case '<': addToken(match('=') ? LESS_EQ : LESS);        break;
-        case '>': addToken(match('=') ? GREATER_EQ : GREATER);  break;
+        case '!': addToken(match('=') ? BANG_EQ    : BANG);    break;
+        case '=': addToken(match('=') ? EQ_EQ      : EQ);      break;
+        case '<': addToken(match('=') ? LESS_EQ    : LESS);    break;
+        case '>': addToken(match('=') ? GREATER_EQ : GREATER); break;
 
         case '/':
             if (match('/')) {
                 while (peek() != '\n' && !isAtEnd())
                     advance();
+            } else if (match('*')) {
+                multiComment();
             } else {
                 addToken(SLASH);
             }
@@ -157,6 +157,20 @@ class Scanner {
         advance();
         String value = source.substring(start + 1, curr - 1);
         addToken(STRING, value);
+    }
+
+    private void multiComment() {
+        while (!(peek() == '*' && peekNext() == '/') && !isAtEnd()) {
+            if (peek() == '\n')
+                line++;
+            advance();
+        }
+
+        if (isAtEnd()) {
+            Lox.error(line, "unterminated comment");
+            return;
+        }
+        advance(); advance();
     }
 
     private boolean isDigit(char c) {
