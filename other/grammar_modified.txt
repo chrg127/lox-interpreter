@@ -11,7 +11,8 @@ var_decl        : "var" IDENT ( "=" expr )? ";"
 
 function        : IDENT "(" params? ")" block ;
 params          : IDENT ( "," IDENT )* ;
-funargs         : expr ( "," expr )* ;
+// 'assignment' here will skip comma expression, since those can't appear in function arguments
+funargs         : assignment ( "," assignment )* ;
 
 stmt            : expr_stmt
                 | for_stmt
@@ -31,7 +32,8 @@ return_stmt     : "return expr? ";" ;
 while_stmt      : "while" "(" expr ")" stmt ;
 block           : "{" decl* "}" ;
 
-expr            : assignment ;
+expr            : comma ;
+comma           : assignment "," assignment ;
 assignment      : ( call "." )? IDENT "=" assignment | logic_or ;
 logic_or        : logic_and ( "or" logic_and )* ;
 logic_and       : equality ( "and" equality )* ;
@@ -40,7 +42,7 @@ comparison      : term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term            : factor ( ( "-" | "+" | "&" | "|" ) factor )* ;
 factor          : unary ( ( "/" | "*" ) unary )* ;
 unary           : ( "!" | "-" ) unary | call ;
-call            : primary ( "(" args? ")" | "." IDENT )* ;
+call            : primary ( "(" funargs? ")" | "." IDENT )* ;
 primary         : "true" | "false" | "nil" | "this"
                 | NUMBER | STRING | IDENT | "(" expr ")"
                 | "super" "." IDENT ;
@@ -50,4 +52,5 @@ STRING          : "\"" <any char except "\"">* "\"" ;
 IDENT           : ALPHA ( ALPHA | DIGIT )* ;
 ALPHA           : "a" ... "z" | "A" ... "Z" | "_" ;
 DIGIT           : "0" ... "9" ;
+
 

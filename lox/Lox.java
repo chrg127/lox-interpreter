@@ -76,18 +76,18 @@ public class Lox {
         List<Stmt> statements = parser.parse();
         if (hadError)
             return;
-        Resolver resolver = new Resolver(interpreter);
-        resolver.resolve(statements);
-        if (hadError)
-            return;
-        interpreter.interpret(statements);
-        // printAST(statements);
+        printAST(statements);
+        // Resolver resolver = new Resolver(interpreter);
+        // resolver.resolve(statements);
+        // if (hadError)
+        //     return;
+        // interpreter.interpret(statements);
     }
 
     private static void printAST(List<Stmt> statements) {
         var printer = new ASTPrinter();
         for (var stmt : statements)
-            System.out.println(printer.run(stmt));
+            System.out.println(printer.printStmt(stmt));
     }
 
     private static void report(int line, String errtype, String where, String message) {

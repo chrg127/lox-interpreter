@@ -165,7 +165,7 @@ class Parser {
     }
 
     private Expr expression() {
-        return assignment();
+        return comma();
     }
 
     private Expr binaryOp(Supplier<Expr> operandExpr, Token.Type... types) {
@@ -265,7 +265,8 @@ class Parser {
             do {
                 if (args.size() >= 255)
                     error(peek(), "can't have more than 255 arguments");
-                args.add(expression());
+                // skip comma expressions while parsing function arguments
+                args.add(assignment());
             } while (match(COMMA));
         }
         Token paren = consume(RIGHT_PAREN, "expected ')' after arguments");
