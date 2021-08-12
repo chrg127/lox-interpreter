@@ -1,159 +1,87 @@
 package lox;
 
 import java.util.List;
+import java.util.function.Function;
 
-class ASTPrinter implements Expr.Visitor<String>,
-                            Stmt.Visitor<String> {
-    String run(Stmt stmt) {
-        return stmt.accept(this);
-    }
+class ASTPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
+    private Function<Expr, String> EXPR = e -> printExpr(e);
+    private Function<Stmt, String> STMT = s -> printStmt(s);
+    private Function<Token, String> TOKEN = t -> t.lexeme;
 
-    String print(Expr expr) {
-        return expr.accept(this);
-    }
+    public String printStmt(Stmt stmt) { return stmt.accept(this); }
+    public String printExpr(Expr expr) { return expr.accept(this); }
 
-    @Override
-    public String visitBinaryExpr(Expr.Binary expr) {
-        return parenthesize(expr.operator.lexeme, expr.left, expr.right);
-    }
-
-    @Override
-    public String visitCallExpr(Expr.Call expr) {
+    private <T> String parenthesize(String name, Function<T, String> fn, T... ts) {
         var builder = new StringBuilder();
-        builder.append("(").append(expr.callee.accept(this));
-        for (var e : expr.arguments) {
-            builder.append(" ");
-            builder.append(e.accept(this));
+        builder.append("(");
+        if (!name.isEmpty())
+            builder.append(name);
+        for (var t : ts) {
+            String s = fn.apply(t);
+            if (s.isEmpty())
+                continue;
+            builder.append(" ").append(s);
         }
-        builder.append(")");
-        return builder.toString();
+        return builder.append(")").toString();
     }
 
-    @Override
-    public String visitGetExpr(Expr.Get expr) {
-        return parenthesize("(get " + expr.name.lexeme + " ", expr.object);
+    private <T> String parenthesizeList(String name, Function<T, String> fn, List<T> ts) {
+        @SuppressWarnings("unchecked")
+        T[] arr = (T[]) new Object[0];
+        return parenthesize(name, fn, ts.toArray(arr));
     }
 
-    @Override
-    public String visitSetExpr(Expr.Set expr) {
-        return parenthesize("(set " + expr.name.lexeme + " ", expr.object,
-                expr.value);
-    }
 
-    @Override
-    public String visitSuperExpr(Expr.Super expr) {
-        return "";
-    }
 
+    // statements
     @Override
-    public String visitGroupingExpr(Expr.Grouping expr) {
-        return parenthesize("group", expr.expression);
-    }
-
-    @Override
-    public String visitLiteralExpr(Expr.Literal expr) {
-        if (expr.value == null)
-            return "nil";
-        return expr.value.toString();
-    }
-
-    @Override
-    public String visitThisExpr(Expr.This expr) {
-        return "this";
-    }
-
-    @Override
-    public String visitUnaryExpr(Expr.Unary expr) {
-        return parenthesize(expr.operator.lexeme, expr.right);
-    }
-
-    @Override
-    public String visitVariableExpr(Expr.Variable expr) {
-        return expr.name.lexeme;
-    }
-
-    @Override
-    public String visitAssignExpr(Expr.Assign expr) {
-        return parenthesize("= " + expr.name.lexeme, expr.value);
-    }
-
-    @Override
-    public String visitLogicalExpr(Expr.Logical expr) {
-        return parenthesize(expr.operator.lexeme, expr.left, expr.right);
-    }
-
-    @Override
-    public String visitExpressionStmt(Stmt.Expression stmt) {
-        return parenthesize("expr", stmt.expression);
+    public String visitClassStmt(Stmt.Class stmt) {
+        return parenthesize("class " + stmt.name.lexeme, a -> a,
+                stmt.superclass == null ? "" : parenthesize("superclass", EXPR, stmt.superclass),
+                parenthesizeList("", e -> e.accept(this), stmt.methods));
     }
 
     @Override
     public String visitFunctionStmt(Stmt.Function stmt) {
-        var builder = new StringBuilder();
-        builder.append("(fun ").append(stmt.name.lexeme).append(" (args ");
-        for (var param : stmt.params)
-            builder.append(param.lexeme).append(" ");
-        builder.append(") (body ");
-        for (var bodystmt : stmt.body)
-            builder.append(bodystmt.accept(this)).append(" ");
-        builder.append("))");
-        return builder.toString();
+        return parenthesize("fun " + stmt.name.lexeme, a -> a,
+                parenthesizeList("args", TOKEN, stmt.params),
+                parenthesizeList("body", STMT, stmt.body));
     }
 
-    @Override
-    public String visitPrintStmt(Stmt.Print stmt) {
-        return parenthesize("print", stmt.expression);
-    }
-
-    @Override
-    public String visitReturnStmt(Stmt.Return stmt) {
-        return parenthesize("return", stmt.value);
-    }
-
-    @Override
-    public String visitVarStmt(Stmt.Var stmt) {
-        return parenthesize("vardecl " + stmt.name.lexeme, stmt.initializer);
-    }
-
-    @Override
-    public String visitBlockStmt(Stmt.Block block) {
-        var builder = new StringBuilder();
-        builder.append("(block ");
-        for (var stmt : block.statements)
-            builder.append(stmt.accept(this)).append(" ");
-        return builder.append(")").toString();
-    }
-
-    @Override
-    public String visitClassStmt(Stmt.Class stmt) {
-        var builder = new StringBuilder();
-        builder.append("(class ");
-        for (var f : stmt.methods)
-            builder.append(f.accept(this)).append(" ");
-        return builder.append(")").toString();
-    }
+    @Override public String visitVarStmt(Stmt.Var stmt)               { return parenthesize("var " + stmt.name.lexeme, EXPR, stmt.initializer); }
+    @Override public String visitExpressionStmt(Stmt.Expression stmt) { return parenthesize("expr-stmt", EXPR, stmt.expression); }
 
     @Override
     public String visitIfStmt(Stmt.If stmt) {
-        String thenBranch = run(stmt.thenBranch);
-        String elseBranch = run(stmt.elseBranch);
-        String cond = print(stmt.cond);
-        return "(if " + cond + " " + thenBranch + " " + elseBranch + ")";
+        var builder = new StringBuilder();
+        builder.append("(if ").append(printExpr(stmt.cond)).append(" ").append(printStmt(stmt.thenBranch));
+        if (stmt.elseBranch != null)
+            builder.append(" ").append(stmt.elseBranch);
+        return builder.append(")").toString();
     }
+
+    @Override public String visitPrintStmt(Stmt.Print stmt)           { return parenthesize("print", EXPR, stmt.expression); }
+    @Override public String visitReturnStmt(Stmt.Return stmt)         { return parenthesize("return", EXPR, stmt.value); }
+    @Override public String visitWhileStmt(Stmt.While stmt)           { return "(while " + printExpr(stmt.cond) + " " + printStmt(stmt.body) + ")"; }
+    @Override public String visitBlockStmt(Stmt.Block block)          { return parenthesizeList("{}", STMT, block.statements); }
+
+    // expressions
+    @Override public String visitBinaryExpr(Expr.Binary expr)         { return parenthesize(expr.operator.lexeme, EXPR, expr.left, expr.right); }
+    @Override public String visitAssignExpr(Expr.Assign expr)         { return parenthesize("= " + expr.name.lexeme, EXPR, expr.value); }
+    @Override public String visitLogicalExpr(Expr.Logical expr)       { return parenthesize(expr.operator.lexeme, EXPR, expr.left, expr.right); }
+    @Override public String visitUnaryExpr(Expr.Unary expr)           { return parenthesize(expr.operator.lexeme, EXPR, expr.right); }
+    @Override public String visitCallExpr(Expr.Call expr)             { return parenthesizeList(printExpr(expr.callee), EXPR, expr.arguments); }
+    @Override public String visitGetExpr(Expr.Get expr)               { return parenthesize("get " + expr.name.lexeme, EXPR, expr.object); }
+    @Override public String visitSetExpr(Expr.Set expr)               { return parenthesize("set " + expr.name.lexeme, EXPR, expr.object, expr.value); }
+    @Override public String visitVariableExpr(Expr.Variable expr)     { return expr.name.lexeme; }
+    @Override public String visitThisExpr(Expr.This expr)             { return "this"; }
+    @Override public String visitSuperExpr(Expr.Super expr)           { return "(super " + expr.method.lexeme + ")"; }
+    @Override public String visitGroupingExpr(Expr.Grouping expr)     { return parenthesize("group", EXPR, expr.expression); }
 
     @Override
-    public String visitWhileStmt(Stmt.While stmt) {
-        return "(while " + print(stmt.cond) + " " + run(stmt.body) + ")";
-    }
-
-    private String parenthesize(String name, Expr... exprs) {
-        var builder = new StringBuilder();
-        builder.append("(").append(name);
-        for (var expr : exprs) {
-            builder.append(" ");
-            builder.append(expr.accept(this));
-        }
-        builder.append(")");
-        return builder.toString();
+    public String visitLiteralExpr(Expr.Literal expr) {
+        if (expr.value == null) return "nil";
+        if (expr.value instanceof String) return "\"" + expr.value.toString() + "\"";
+        return expr.value.toString();
     }
 }
