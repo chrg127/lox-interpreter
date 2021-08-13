@@ -292,6 +292,12 @@ class Parser {
             Token method = consume(IDENT, "expected superclass method name");
             return new Expr.Super(keyword, method);
         }
+
+        switch (peek().type) {
+        case PLUS: case MINUS: case SLASH: case STAR: case BITAND: case BITOR: case GREATER:
+        case GREATER_EQ: case LESS: case LESS_EQ: case BANG_EQ: case EQ_EQ: case COMMA:
+            throw error(peek(), "binary operator without left operand");
+        }
         throw error(peek(), "expected primary expression");
     }
 
