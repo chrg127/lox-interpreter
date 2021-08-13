@@ -13,45 +13,34 @@ class Environment {
     public Environment()                      { enclosing = null; }
     public Environment(Environment enclosing) { this.enclosing = enclosing; }
 
-    void declare(String name) {
+    public void declare(String name) {
         values.put(name, null);
         uninitialized.add(name);
     }
 
-    boolean declared(String name) {
+    public boolean declared(String name) {
         return values.containsKey(name);
     }
 
-    Object uncheckedGet(String name) {
+    private Object uncheckedGet(String name) {
         return values.get(name);
     }
 
-    void uncheckedSet(String name, Object value) {
-        uninitialized.remove(name);
-        values.put(name, value);
-    }
-
-    Object getValue(Token name) {
-        if (!declared(name.lexeme))
-            throw new RuntimeError(name, "undefined variable");
+    public Object getValue(Token name) {
         if (uninitialized.contains(name.lexeme))
             throw new RuntimeError(name, "uninitialized variable access");
         return uncheckedGet(name.lexeme);
     }
 
-    void setValue(Token name, Object value) {
-        if (!declared(name.lexeme))
-            throw new RuntimeError(name, "undefined variable");
-        uncheckedSet(name.lexeme, value);
+    public void setValue(String name, Object value) {
+        uninitialized.remove(name);
+        values.put(name, value);
     }
 
     // declares and set a variable in one go
     public void define(String name, Object value) {
-        uncheckedSet(name, value);
+        values.put(name, value);
     }
-
-
-
 
     private Environment ancestor(int dist) {
         Environment env = this;
@@ -65,10 +54,10 @@ class Environment {
     }
 
     public void assignAt(int dist, Token name, Object value) {
-        ancestor(dist).uncheckedSet(name.lexeme, value);
+        ancestor(dist).setValue(name.lexeme, value);
     }
 
-    Object get(Token name) {
+    public Object get(Token name) {
         if (declared(name.lexeme))
             return getValue(name);
         else if (enclosing == null)
@@ -76,9 +65,9 @@ class Environment {
         return enclosing.get(name);
     }
 
-    void assign(Token name, Object value) {
+    public void assign(Token name, Object value) {
         if (declared(name.lexeme)) {
-            uncheckedSet(name.lexeme, value);
+            setValue(name.lexeme, value);
             return;
         } else if (enclosing == null)
             throw new RuntimeError(name, "undefined variable '" + name.lexeme + "'");

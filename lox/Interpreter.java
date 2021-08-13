@@ -40,25 +40,22 @@ class Interpreter implements Expr.Visitor<Object>,
         if (stmt.superclass != null) {
             superclass = eval(stmt.superclass);
             if (!(superclass instanceof LoxClass))
-                throw new RuntimeError(stmt.superclass.name,
-                        "superclass must be a class");
+                throw new RuntimeError(stmt.superclass.name, "superclass must be a class");
         }
-        env.define(stmt.name.lexeme, null);
+        env.declare(stmt.name.lexeme);
         if (stmt.superclass != null) {
             env = new Environment(env);
             env.define("super", superclass);
         }
         Map<String, LoxFunction> methods = new HashMap<>();
         for (var method : stmt.methods) {
-            LoxFunction function = new LoxFunction(method, env,
-                    method.name.lexeme.equals("init"));
+            LoxFunction function = new LoxFunction(method, env, method.name.lexeme.equals("init"));
             methods.put(method.name.lexeme, function);
         }
-        LoxClass klass = new LoxClass(stmt.name.lexeme,
-                (LoxClass) superclass, methods);
+        LoxClass klass = new LoxClass(stmt.name.lexeme, (LoxClass) superclass, methods);
         if (superclass != null)
             env = env.enclosing;
-        env.assign(stmt.name, klass);
+        env.setValue(stmt.name.lexeme, klass);
         return null;
     }
 
@@ -143,7 +140,7 @@ class Interpreter implements Expr.Visitor<Object>,
     public Void visitVarStmt(Stmt.Var stmt) {
         env.declare(stmt.name.lexeme);
         if (stmt.initializer != null)
-            env.uncheckedSet(stmt.name.lexeme, eval(stmt.initializer));
+            env.setValue(stmt.name.lexeme, eval(stmt.initializer));
         return null;
     }
 

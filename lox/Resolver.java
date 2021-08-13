@@ -185,7 +185,7 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     public Void visitSuperExpr(Expr.Super expr) {
         if (currClass == ClassType.NONE)
             Lox.error(expr.keyword, "can't use 'super' outside class");
-        else
+        else if (currClass != ClassType.SUBCLASS)
             Lox.error(expr.keyword, "can't use 'super' in a class without superclass");
         resolveLocal(expr, expr.keyword);
         return null;
