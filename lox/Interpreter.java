@@ -81,7 +81,7 @@ class Interpreter implements Expr.Visitor<Object>,
         stmt.accept(this);
     }
 
-    private Object eval(Expr expr) {
+    public Object eval(Expr expr) {
         return expr.accept(this);
     }
 
@@ -141,8 +141,9 @@ class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Void visitVarStmt(Stmt.Var stmt) {
-        Object value = stmt.initializer == null ? null : eval(stmt.initializer);
-        env.define(stmt.name.lexeme, value);
+        env.declare(stmt.name.lexeme);
+        if (stmt.initializer != null)
+            env.uncheckedSet(stmt.name.lexeme, eval(stmt.initializer));
         return null;
     }
 
@@ -306,8 +307,7 @@ class Interpreter implements Expr.Visitor<Object>,
         LoxInstance obj = (LoxInstance) env.getAt(dist - 1, "this");
         LoxFunction method = superclass.findMethod(expr.method.lexeme);
         if (method == null)
-            throw new RuntimeError(expr.method, "undefined property '" +
-                    expr.method.lexeme + "'");
+            throw new RuntimeError(expr.method, "undefined property '" + expr.method.lexeme + "'");
         return method.bind(obj);
     }
 
