@@ -6,25 +6,16 @@ import java.util.Map;
 import java.util.Stack;
 
 class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
-    private final Interpreter interpreter;
-    private final Stack<Map<String, Boolean>> scopes = new Stack<>();
-
     private enum FunctionType { NONE, FUNCTION, CTOR, METHOD }
     private enum ClassType    { NONE, CLASS, SUBCLASS }
 
+    private final Interpreter interpreter;
+    private final Stack<Map<String, Boolean>> scopes = new Stack<>();
     private FunctionType currFunc = FunctionType.NONE;
     private ClassType currClass = ClassType.NONE;
 
     Resolver(Interpreter interpreter) {
         this.interpreter = interpreter;
-    }
-
-    @Override
-    public Void visitBlockStmt(Stmt.Block stmt) {
-        beginScope();
-        resolve(stmt.statements);
-        endScope();
-        return null;
     }
 
     @Override
@@ -56,37 +47,19 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     }
 
     @Override
+    public Void visitFunctionStmt(Stmt.Function stmt) {
+        declare(stmt.name);
+        define(stmt.name);
+        resolveFunction(stmt, FunctionType.FUNCTION);
+        return null;
+    }
+
+    @Override
     public Void visitVarStmt(Stmt.Var stmt) {
         declare(stmt.name);
         if (stmt.initializer != null)
             resolve(stmt.initializer);
         define(stmt.name);
-        return null;
-    }
-
-    @Override
-    public Void visitVariableExpr(Expr.Variable expr) {
-        if (!scopes.isEmpty() &&
-            scopes.peek().get(expr.name.lexeme) == Boolean.FALSE) {
-            Lox.error(expr.name,
-                    "can't read local variable in its own initializer");
-            }
-        resolveLocal(expr, expr.name);
-        return null;
-    }
-
-    @Override
-    public Void visitAssignExpr(Expr.Assign expr) {
-        resolve(expr.value);
-        resolveLocal(expr, expr.name);
-        return null;
-    }
-
-    @Override
-    public Void visitFunctionStmt(Stmt.Function stmt) {
-        declare(stmt.name);
-        define(stmt.name);
-        resolveFunction(stmt, FunctionType.FUNCTION);
         return null;
     }
 
@@ -132,8 +105,38 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     }
 
     @Override
+    public Void visitBlockStmt(Stmt.Block stmt) {
+        beginScope();
+        resolve(stmt.statements);
+        endScope();
+        return null;
+    }
+
+
+
+    @Override
     public Void visitBinaryExpr(Expr.Binary expr) {
         resolve(expr.left);
+        resolve(expr.right);
+        return null;
+    }
+
+    @Override
+    public Void visitAssignExpr(Expr.Assign expr) {
+        resolve(expr.value);
+        resolveLocal(expr, expr.name);
+        return null;
+    }
+
+    @Override
+    public Void visitLogicalExpr(Expr.Logical expr) {
+        resolve(expr.left);
+        resolve(expr.right);
+        return null;
+    }
+
+    @Override
+    public Void visitUnaryExpr(Expr.Unary expr) {
         resolve(expr.right);
         return null;
     }
@@ -160,6 +163,25 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     }
 
     @Override
+    public Void visitVariableExpr(Expr.Variable expr) {
+        if (!scopes.isEmpty() &&
+            scopes.peek().get(expr.name.lexeme) == Boolean.FALSE) {
+            Lox.error(expr.name,
+                    "can't read local variable in its own initializer");
+            }
+        resolveLocal(expr, expr.name);
+        return null;
+    }
+
+    @Override
+    public Void visitThisExpr(Expr.This expr) {
+        if (currClass == ClassType.NONE)
+            Lox.error(expr.keyword, "can't use 'this' outside a class");
+        resolveLocal(expr, expr.keyword);
+        return null;
+    }
+
+    @Override
     public Void visitSuperExpr(Expr.Super expr) {
         if (currClass == ClassType.NONE)
             Lox.error(expr.keyword, "can't use 'super' outside class");
@@ -180,47 +202,16 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
-    @Override
-    public Void visitLogicalExpr(Expr.Logical expr) {
-        resolve(expr.left);
-        resolve(expr.right);
-        return null;
-    }
-
-    @Override
-    public Void visitThisExpr(Expr.This expr) {
-        if (currClass == ClassType.NONE)
-            Lox.error(expr.keyword, "can't use 'this' outside a class");
-        resolveLocal(expr, expr.keyword);
-        return null;
-    }
-
-    @Override
-    public Void visitUnaryExpr(Expr.Unary expr) {
-        resolve(expr.right);
-        return null;
-    }
-
-    void resolve(List<Stmt> statements) {
+    public void resolve(List<Stmt> statements) {
         for (var stmt : statements)
             resolve(stmt);
     }
 
-    private void resolve(Stmt stmt) {
-        stmt.accept(this);
-    }
+    private void resolve(Stmt stmt) { stmt.accept(this); }
+    private void resolve(Expr expr) { expr.accept(this); }
 
-    private void resolve(Expr expr) {
-        expr.accept(this);
-    }
-
-    private void beginScope() {
-        scopes.push(new HashMap<String, Boolean>());
-    }
-
-    private void endScope() {
-        scopes.pop();
-    }
+    private void beginScope() { scopes.push(new HashMap<String, Boolean>()); }
+    private void endScope()   { scopes.pop(); }
 
     private void declare(Token name) {
         if (scopes.isEmpty())
