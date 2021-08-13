@@ -202,7 +202,11 @@ class Interpreter implements Expr.Visitor<Object>,
             throw new RuntimeError(expr.operator, "operands must be two numbers or two strings");
         case MINUS: checkNums(expr.operator, left, right); return (double)left - (double)right;
         case STAR:  checkNums(expr.operator, left, right); return (double)left * (double)right;
-        case SLASH: checkNums(expr.operator, left, right), return (double)left / (double)right;
+        case SLASH:
+            checkNums(expr.operator, left, right);
+            if ( ((double)right) == 0.0)
+                throw new RuntimeError(expr.operator, "dividing by zero");
+            return (double)left / (double)right;
         case BITAND:     checkNums(expr.operator, left, right); return doBitwiseOp(left, right, expr.operator.type);
         case BITOR:      checkNums(expr.operator, left, right); return doBitwiseOp(left, right, expr.operator.type);
         case GREATER:    checkNums(expr.operator, left, right); return (double)left >  (double)right;
