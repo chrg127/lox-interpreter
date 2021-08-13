@@ -29,8 +29,22 @@ class Interpreter implements Expr.Visitor<Object>,
         try {
             for (var stmt : statements)
                 exec(stmt);
+        } catch (Break brk) {
+            Lox.runtimeError(brk.keyword, "'break' outside of looping construct");
         } catch (RuntimeError error) {
             Lox.runtimeError(error);
+        }
+    }
+
+    public String interpretOne(Stmt.Expression stmt) {
+        try {
+            return stringify(eval(stmt.expression));
+        } catch (Break brk) {
+            Lox.runtimeError(brk.keyword, "'break' outside of looping construct");
+            return "nil";
+        } catch (RuntimeError error) {
+            Lox.runtimeError(error);
+            return "nil";
         }
     }
 
@@ -174,9 +188,19 @@ class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Void visitWhileStmt(Stmt.While stmt) {
-        while (isTruthy(eval(stmt.cond)))
-            exec(stmt.body);
+        while (isTruthy(eval(stmt.cond))) {
+            try {
+                exec(stmt.body);
+            } catch (Break brk) {
+                return null;
+            }
+        }
         return null;
+    }
+
+    @Override
+    public Void visitBreakStmt(Stmt.Break stmt) {
+        throw new Break(stmt.keyword);
     }
 
     @Override

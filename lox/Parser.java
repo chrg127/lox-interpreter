@@ -67,6 +67,7 @@ class Parser {
         if (match(PRINT))      return printStmt();
         if (match(RETURN))     return returnStmt();
         if (match(WHILE))      return whileStmt();
+        if (match(BREAK))      return breakStmt();
         if (match(LEFT_BRACE)) return new Stmt.Block(block());
         return expressionStmt();
     }
@@ -130,6 +131,12 @@ class Parser {
         consume(RIGHT_PAREN, "expected ')' after condition");
         Stmt body = stmt();
         return new Stmt.While(cond, body);
+    }
+
+    private Stmt breakStmt() {
+        Token keyword = previous();
+        consume(SEMICOLON, "expected ';' after 'break' keyword");
+        return new Stmt.Break(keyword);
     }
 
     private List<Stmt> block() {

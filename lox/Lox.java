@@ -37,9 +37,13 @@ public class Lox {
         hadError = true;
     }
 
-    public static void runtimeError(RuntimeError error) {
-        report(error.token.line, "runtime error", "", error.getMessage());
+    public static void runtimeError(Token token, String msg) {
+        report(token.line, "runtime error", "", msg);
         hadRuntimeError = true;
+    }
+
+    public static void runtimeError(RuntimeError error) {
+        runtimeError(error.token, error.getMessage());
     }
 
 
@@ -83,12 +87,8 @@ public class Lox {
             return;
 
         if (fromPrompt && statements.size() == 1 && statements.get(0) instanceof Stmt.Expression) {
-            Stmt.Expression exprStmt = (Stmt.Expression) statements.get(0);
-            try {
-                System.out.println(interpreter.eval(exprStmt.expression));
-            } catch(RuntimeError error) {
-                Lox.runtimeError(error);
-            }
+            Stmt.Expression stmt = (Stmt.Expression) statements.get(0);
+            System.out.println(interpreter.interpretOne(stmt));
             return;
         }
 

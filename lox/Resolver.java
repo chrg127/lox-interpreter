@@ -13,6 +13,7 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     private final Stack<Map<String, Boolean>> scopes = new Stack<>();
     private FunctionType currFunc = FunctionType.NONE;
     private ClassType currClass = ClassType.NONE;
+    private boolean insideWhile = false;
 
     Resolver(Interpreter interpreter) {
         this.interpreter = interpreter;
@@ -22,6 +23,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     public Void visitClassStmt(Stmt.Class stmt) {
         ClassType enclosing = currClass;
         currClass = ClassType.CLASS;
+        boolean prevWhile = insideWhile;
+        insideWhile = false;
         declare(stmt.name);
         define(stmt.name);
         if (stmt.superclass != null) {
@@ -43,6 +46,7 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         if (stmt.superclass != null)
             endScope();
         currClass = enclosing;
+        insideWhile = prevWhile;
         return null;
     }
 
@@ -86,9 +90,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitReturnStmt(Stmt.Return stmt) {
-        if (currFunc == FunctionType.NONE) {
+        if (currFunc == FunctionType.NONE)
             Lox.error(stmt.keyword, "invalid return statement on global scope");
-        }
         if (stmt.value != null) {
             if (currFunc == FunctionType.CTOR)
                 Lox.error(stmt.keyword, "can't return value from constructor");
@@ -99,8 +102,18 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitWhileStmt(Stmt.While stmt) {
+        boolean prevWhile = insideWhile;
+        insideWhile = true;
         resolve(stmt.cond);
         resolve(stmt.body);
+        insideWhile = prevWhile;
+        return null;
+    }
+
+    @Override
+    public Void visitBreakStmt(Stmt.Break stmt) {
+        if (!insideWhile)
+            Lox.error(stmt.keyword, "break statement outside looping construct");
         return null;
     }
 
@@ -164,11 +177,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitVariableExpr(Expr.Variable expr) {
-        if (!scopes.isEmpty() &&
-            scopes.peek().get(expr.name.lexeme) == Boolean.FALSE) {
-            Lox.error(expr.name,
-                    "can't read local variable in its own initializer");
-            }
+        if (!scopes.isEmpty() && scopes.peek().get(expr.name.lexeme) == Boolean.FALSE)
+            Lox.error(expr.name, "can't read local variable in its own initializer");
         resolveLocal(expr, expr.name);
         return null;
     }
@@ -239,10 +249,11 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         }
     }
 
-    private void resolveFunction(Stmt.Function function,
-            FunctionType type) {
+    private void resolveFunction(Stmt.Function function, FunctionType type) {
         FunctionType enclosing = currFunc;
         currFunc = type;
+        boolean prevWhile = insideWhile;
+        insideWhile = false;
         beginScope();
         for (var param : function.params) {
             declare(param);
@@ -251,5 +262,6 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         resolve(function.body);
         endScope();
         currFunc = enclosing;
+        insideWhile = prevWhile;
     }
 }

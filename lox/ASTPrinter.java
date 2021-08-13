@@ -63,6 +63,7 @@ class ASTPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
     @Override public String visitPrintStmt(Stmt.Print stmt)           { return parenthesize("print", EXPR, stmt.expression); }
     @Override public String visitReturnStmt(Stmt.Return stmt)         { return parenthesize("return", EXPR, stmt.value); }
     @Override public String visitWhileStmt(Stmt.While stmt)           { return "(while " + printExpr(stmt.cond) + " " + printStmt(stmt.body) + ")"; }
+    @Override public String visitBreakStmt(Stmt.Break stmt)           { return "(break)"; }
     @Override public String visitBlockStmt(Stmt.Block block)          { return parenthesizeList("{}", STMT, block.statements); }
 
     // expressions

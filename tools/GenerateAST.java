@@ -13,30 +13,30 @@ public class GenerateAST {
         }
         String dir = args[0];
         defineAst(dir, "Expr", Arrays.asList(
-            "Assign     : Token name, Expr value",
             "Binary     : Expr left, Token operator, Expr right",
+            "Assign     : Token name, Expr value",
+            "Logical    : Expr left, Token operator, Expr right",
+            "Unary      : Token operator, Expr right",
             "Call       : Expr callee, Token paren, List<Expr> arguments",
             "Get        : Expr object, Token name",
             "Set        : Expr object, Token name, Expr value",
+            "Variable   : Token name",
+            "This       : Token keyword",
             "Super      : Token keyword, Token method",
             "Grouping   : Expr expression",
-            "Literal    : Object value",
-            "Logical    : Expr left, Token operator, Expr right",
-            "This       : Token keyword",
-            "Unary      : Token operator, Expr right",
-            "Variable   : Token name"
+            "Literal    : Object value"
         ));
         defineAst(dir, "Stmt", Arrays.asList(
-            "Expression : Expr expression",
+            "Class      : Token name, Expr.Variable superclass, List<Stmt.Function> methods",
             "Function   : Token name, List<Token> params, List<Stmt> body",
+            "Var        : Token name, Expr initializer",
+            "Expression : Expr expression",
             "If         : Expr cond, Stmt thenBranch, Stmt elseBranch",
             "Print      : Expr expression",
             "Return     : Token keyword, Expr value",
-            "Block      : List<Stmt> statements",
-            "Class      : Token name, Expr.Variable superclass, " +
-                         "List<Stmt.Function> methods",
-            "Var        : Token name, Expr initializer",
-            "While      : Expr cond, Stmt body"
+            "While      : Expr cond, Stmt body",
+            "Break      : Token keyword",
+            "Block      : List<Stmt> statements"
         ));
     }
 

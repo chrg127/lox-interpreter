@@ -20,6 +20,7 @@ stmt            : expr_stmt
                 | print_stmt
                 | return_stmt
                 | while_stmt
+                | break_stmt
                 | block ;
 
 expr_stmt       : expr ";" ;
@@ -30,6 +31,7 @@ if_stmt         : "if" "(" expr ")" stmt ( "else" stmt )? ;
 print_stmt      : "print" expr ";" ;
 return_stmt     : "return expr? ";" ;
 while_stmt      : "while" "(" expr ")" stmt ;
+break_stmt      : "break" ;
 block           : "{" decl* "}" ;
 
 expr            : comma ;
