@@ -1,0 +1,58 @@
+class ListIterator {
+    init(list) { this.list = list; }
+    has_next() { return this.list != nil; }
+    elem() { return this.list.elem; }
+    next() { return ListIterator(this.list.next); }
+}
+
+class List {
+    init(elem)
+    {
+        this.elem = elem;
+        this.next = nil;
+    }
+
+    iter()
+    {
+        return ListIterator(this);
+    }
+
+    append(elem)
+    {
+        var new = List(elem);
+        new.next = this;
+        return new;
+    }
+}
+
+fun for_each(list, fn)
+{
+    for (var it = list.iter(); it.has_next(); it = it.next())
+        fn(it.elem());
+}
+
+fun map(list, list_type, fn)
+{
+    var res = list_type(nil);
+    for (var it = list.iter(); it.has_next(); it = it.next())
+        res = res.append(fn(it.elem()));
+    return res;
+}
+
+fun list_map(list, fn)
+{
+    if (list == nil)
+        return nil;
+    var rest = list_map(list.next, fn);
+    var new = List(fn(list.elem));
+    new.next = rest;
+    return new;
+}
+
+var head = List(3);
+head = head.append(2);
+head = head.append(1);
+
+for_each(head, lambda (x) { print x; });
+var newlist = list_map(head, lambda (x) { return x*x; });
+for_each(newlist, lambda (x) { print x; });
