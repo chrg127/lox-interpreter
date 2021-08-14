@@ -15,6 +15,7 @@ class Scanner {
     static {
         keywords = new HashMap<>();
         keywords.put("and",    AND);
+        keywords.put("break",  BREAK);
         keywords.put("class",  CLASS);
         keywords.put("else",   ELSE);
         keywords.put("false",  FALSE);
@@ -25,6 +26,7 @@ class Scanner {
         keywords.put("fun",    FUN);
         keywords.put("for",    FOR);
         keywords.put("if",     IF);
+        keywords.put("lambda", LAMBDA);
         keywords.put("nil",    NIL);
         keywords.put("or",     OR);
         keywords.put("print",  PRINT);
@@ -34,7 +36,6 @@ class Scanner {
         keywords.put("true",   TRUE);
         keywords.put("var",    VAR);
         keywords.put("while",  WHILE);
-        keywords.put("break",  BREAK);
     }
 
     public Scanner(final String source) {

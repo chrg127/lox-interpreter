@@ -40,7 +40,7 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         for (var method : stmt.methods) {
             FunctionType decl = method.name.lexeme.equals("init") ?
                                 FunctionType.CTOR : FunctionType.METHOD;
-            resolveFunction(method, decl);
+            resolveFunction(method.params, method.body, decl);
         }
         endScope();
         if (stmt.superclass != null)
@@ -54,7 +54,7 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     public Void visitFunctionStmt(Stmt.Function stmt) {
         declare(stmt.name);
         define(stmt.name);
-        resolveFunction(stmt, FunctionType.FUNCTION);
+        resolveFunction(stmt.params, stmt.body, FunctionType.FUNCTION);
         return null;
     }
 
@@ -163,6 +163,12 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     }
 
     @Override
+    public Void visitLambdaExpr(Expr.Lambda expr) {
+        resolveFunction(expr.params, expr.body, FunctionType.FUNCTION);
+        return null;
+    }
+
+    @Override
     public Void visitGetExpr(Expr.Get expr) {
         resolve(expr.object);
         return null;
@@ -249,17 +255,17 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         }
     }
 
-    private void resolveFunction(Stmt.Function function, FunctionType type) {
+    private void resolveFunction(List<Token> params, List<Stmt> body, FunctionType type) {
         FunctionType enclosing = currFunc;
         currFunc = type;
         boolean prevWhile = insideWhile;
         insideWhile = false;
         beginScope();
-        for (var param : function.params) {
+        for (var param : params) {
             declare(param);
             define(param);
         }
-        resolve(function.body);
+        resolve(body);
         endScope();
         currFunc = enclosing;
         insideWhile = prevWhile;

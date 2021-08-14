@@ -1,12 +1,10 @@
 package lox;
 
-import java.util.List;
-
-class LoxFunction implements LoxCallable {
+class LoxLambda implements LoxCallable {
     private final List<Token> params;
     private final List<Stmt> body;
     private final Environment closure;
-    private String name;
+    private final String name = "";
     private final boolean isCtor;
 
     public LoxFunction(List<Token> params, List<Stmt> body, Environment closure, boolean isCtor) {
@@ -14,12 +12,11 @@ class LoxFunction implements LoxCallable {
         this.body = body;
         this.closure = closure;
         this.isCtor = isCtor;
-        this.name = "";
     }
 
-    public LoxFunction(Stmt.Function decl, Environment closure, boolean isCtor) {
-        this(decl.params, decl.body, closure, isCtor);
-        this.name = decl.name.lexeme;
+    public LoxFunction(String name, List<Token> params, List<Stmt> body, Environment closure, boolean isCtor) {
+        LoxFunction(params, body, closure);
+        this.name = name;
     }
 
     @Override
@@ -28,7 +25,7 @@ class LoxFunction implements LoxCallable {
         for (int i = 0; i < params.size(); i++)
             env.define(params.get(i).lexeme, arguments.get(i));
         try {
-            interpreter.execBlock(body, env);
+            interpreter.execBlock(decl.body, env);
         } catch (Return retval) {
             if (isCtor)
                 return closure.getAt(0, "this");
@@ -47,11 +44,11 @@ class LoxFunction implements LoxCallable {
     LoxFunction bind(LoxInstance instance) {
         Environment env = new Environment(closure);
         env.define("this", instance);
-        return new LoxFunction(params, body, env, isCtor);
+        return new LoxFunction(decl, env, isCtor);
     }
 
     @Override
     public String toString() {
-        return "<fn " + (name.isEmpty() ? "<lambda>" : name) + ">";
+        return name.isEmpty() ? "<lambda>" : "<fn " + name + ">";
     }
 }

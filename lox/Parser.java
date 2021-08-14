@@ -154,8 +154,23 @@ class Parser {
         return new Stmt.Expression(expr);
     }
 
+    static class FunDetails {
+        public List<Token> params;
+        public List<Stmt> body;
+
+        FunDetails(List<Token> params, List<Stmt> body) {
+            this.params = params;
+            this.body = body;
+        }
+    }
+
     private Stmt.Function function(String kind) {
         Token name = consume(IDENT, "expected " + kind + " name");
+        var details = funbody(kind);
+        return new Stmt.Function(name, details.params, details.body);
+    }
+
+    private FunDetails funbody(String kind) {
         consume(LEFT_PAREN, "expected '(' after " + kind + " name");
         List<Token> params = new ArrayList<>();
         if (!check(RIGHT_PAREN)) {
@@ -163,12 +178,12 @@ class Parser {
                 if (params.size() >= 255)
                     error(peek(), "can't have more than 255 parameters");
                 params.add(consume(IDENT, "expected parameter name"));
-            } while(match(COMMA));
+            } while (match(COMMA));
         }
         consume(RIGHT_PAREN, "expected ')' after parameters");
         consume(LEFT_BRACE, "expected '{' before " + kind + " body");
         List<Stmt> body = block();
-        return new Stmt.Function(name, params, body);
+        return new FunDetails(params, body);
     }
 
     private Expr expression() {
@@ -253,7 +268,7 @@ class Parser {
     }
 
     private Expr call() {
-        Expr expr = primary();
+        Expr expr = lambda();
         while (true) {
             if (match(LEFT_PAREN))
                 expr = finishCall(expr);
@@ -278,6 +293,14 @@ class Parser {
         }
         Token paren = consume(RIGHT_PAREN, "expected ')' after arguments");
         return new Expr.Call(callee, paren, args);
+    }
+
+    public Expr lambda() {
+        if (match(LAMBDA)) {
+            var details = funbody("lambda");
+            return new Expr.Lambda(details.params, details.body);
+        }
+        return primary();
     }
 
     private Expr primary() {

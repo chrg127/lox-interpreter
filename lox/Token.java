@@ -15,8 +15,8 @@ public class Token {
         IDENT, STRING, NUMBER,
 
         // keywords
-        AND, BREAK, CLASS, ELSE, FALSE, FUN, FOR, IF, NIL, OR,
-        PRINT, RETURN, SUPER, THIS, TRUE, VAR, WHILE,
+        AND, BREAK, CLASS, ELSE, FALSE, FUN, FOR, IF, LAMBDA,
+        NIL, OR, PRINT, RETURN, SUPER, THIS, TRUE, VAR, WHILE,
 
         EOF
     }

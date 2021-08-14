@@ -72,6 +72,14 @@ class ASTPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
     @Override public String visitLogicalExpr(Expr.Logical expr)       { return parenthesize(expr.operator.lexeme, EXPR, expr.left, expr.right); }
     @Override public String visitUnaryExpr(Expr.Unary expr)           { return parenthesize(expr.operator.lexeme, EXPR, expr.right); }
     @Override public String visitCallExpr(Expr.Call expr)             { return parenthesizeList(printExpr(expr.callee), EXPR, expr.arguments); }
+
+    @Override
+    public String visitLambdaExpr(Expr.Lambda expr) {
+        return parenthesize("lambda", a -> a,
+                parenthesizeList("args", TOKEN, expr.params),
+                parenthesizeList("body", STMT, expr.body));
+    }
+
     @Override public String visitGetExpr(Expr.Get expr)               { return parenthesize("get " + expr.name.lexeme, EXPR, expr.object); }
     @Override public String visitSetExpr(Expr.Set expr)               { return parenthesize("set " + expr.name.lexeme, EXPR, expr.object, expr.value); }
     @Override public String visitVariableExpr(Expr.Variable expr)     { return expr.name.lexeme; }

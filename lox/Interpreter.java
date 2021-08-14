@@ -294,6 +294,11 @@ class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
+    public Object visitLambdaExpr(Expr.Lambda expr) {
+        return new LoxFunction(expr.params, expr.body, env, false);
+    }
+
+    @Override
     public Object visitGetExpr(Expr.Get expr) {
         Object obj = eval(expr.object);
         if (obj instanceof LoxInstance)
