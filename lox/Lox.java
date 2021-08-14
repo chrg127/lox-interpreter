@@ -29,6 +29,10 @@ public class Lox {
         hadError = true;
     }
 
+    public static void warning(int line, String message) {
+        report(line, "warning", "", message);
+    }
+
     public static void error(Token token, String message) {
         if (token.type == Token.Type.EOF)
             report(token.line, "error", "at end", message);
@@ -85,6 +89,7 @@ public class Lox {
         resolver.resolve(statements);
         if (hadError)
             return;
+        resolver.printUnusedVariables();
 
         if (fromPrompt && statements.size() == 1 && statements.get(0) instanceof Stmt.Expression) {
             Stmt.Expression stmt = (Stmt.Expression) statements.get(0);

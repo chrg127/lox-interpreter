@@ -6,14 +6,20 @@ import java.util.Map;
 import java.util.Stack;
 
 class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
+    private final Interpreter interpreter;
+    private final Stack<Map<String, Boolean>> scopes = new Stack<>();
+
     private enum FunctionType { NONE, FUNCTION, CTOR, METHOD }
     private enum ClassType    { NONE, CLASS, SUBCLASS }
 
-    private final Interpreter interpreter;
-    private final Stack<Map<String, Boolean>> scopes = new Stack<>();
     private FunctionType currFunc = FunctionType.NONE;
     private ClassType currClass = ClassType.NONE;
+
+    // used to keep track of bad 'break' statements
     private boolean insideWhile = false;
+
+    // used to keep track of any unused variables
+    private final Map<String, Token> unused = new HashMap<>();
 
     Resolver(Interpreter interpreter) {
         this.interpreter = interpreter;
@@ -185,6 +191,7 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     public Void visitVariableExpr(Expr.Variable expr) {
         if (!scopes.isEmpty() && scopes.peek().get(expr.name.lexeme) == Boolean.FALSE)
             Lox.error(expr.name, "can't read local variable in its own initializer");
+        unused.remove(expr.name.lexeme);
         resolveLocal(expr, expr.name);
         return null;
     }
@@ -227,17 +234,23 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     private void resolve(Expr expr) { expr.accept(this); }
 
     private void beginScope() { scopes.push(new HashMap<String, Boolean>()); }
-    private void endScope()   { scopes.pop(); }
+
+    private void endScope()
+    {
+        var scope = scopes.pop();
+        for (var variable : scope.entrySet())
+            if (!variable.getValue())
+                Lox.warning(0, "variable '" + variable.getKey() + "' is never used");
+    }
 
     private void declare(Token name) {
         if (scopes.isEmpty())
             return;
         Map<String, Boolean> scope = scopes.peek();
-        if (scope.containsKey(name.lexeme)) {
-            Lox.error(name, "redefinition of variable " + name.lexeme +
-                            " in the same scope");
-        }
+        if (scope.containsKey(name.lexeme))
+            Lox.error(name, "redefinition of variable " + name.lexeme + " in the same scope");
         scope.put(name.lexeme, false);
+        unused.put(name.lexeme, name);
     }
 
     private void define(Token name) {
@@ -269,5 +282,10 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         endScope();
         currFunc = enclosing;
         insideWhile = prevWhile;
+    }
+
+    public void printUnusedVariables() {
+        for (var variable : unused.values())
+            Lox.warning(variable.line, "unused variable '" + variable.lexeme + "'");
     }
 }
