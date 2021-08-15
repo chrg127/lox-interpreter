@@ -6,23 +6,107 @@ import java.util.Map;
 import java.util.Stack;
 
 class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
-    private final Interpreter interpreter;
-    private final Stack<Map<String, Boolean>> scopes = new Stack<>();
+    private static class Variable {
+        boolean declared;
+        int index;
+        Variable(boolean declared, int index) {
+            this.declared = declared;
+            this.index = index;
+        }
+    }
+
+    private static class Scope {
+        Map<String, Variable> vars = new HashMap<>();
+        int index = 0;
+
+        void putVar(String name, boolean declared) {
+            vars.put(name, new Variable(declared, index));
+            index++;
+        }
+
+        void updateVar(String name, boolean declared) {
+            int index = vars.get(name).index;
+            vars.put(name, new Variable(declared, index));
+        }
+    }
 
     private enum FunctionType { NONE, FUNCTION, CTOR, METHOD }
     private enum ClassType    { NONE, CLASS, SUBCLASS }
 
+    private final Interpreter interpreter;
+    private final Stack<Scope> scopes = new Stack<>();
     private FunctionType currFunc = FunctionType.NONE;
     private ClassType currClass = ClassType.NONE;
-
     // used to keep track of bad 'break' statements
     private boolean insideWhile = false;
-
     // used to keep track of any unused variables
     private final Map<String, Token> unused = new HashMap<>();
 
-    Resolver(Interpreter interpreter) {
+    public Resolver(Interpreter interpreter, List<String> builtinNames) {
         this.interpreter = interpreter;
+        // create a scope for global variables
+        beginScope();
+        for (var name : builtinNames)
+            scopes.peek().putVar(name, true);
+    }
+
+    private void resolve(Stmt stmt) { stmt.accept(this); }
+    private void resolve(Expr expr) { expr.accept(this); }
+
+    public void resolve(List<Stmt> statements) {
+        for (var stmt : statements)
+            resolve(stmt);
+    }
+
+    private void beginScope() { scopes.push(new Scope()); }
+    private void endScope()   { scopes.pop(); }
+
+    private void declare(Token name) {
+        if (scopes.peek().vars.containsKey(name.lexeme)) {
+            Lox.error(name, "redefinition of variable " + name.lexeme + " in the same scope");
+            return;
+        }
+        scopes.peek().putVar(name.lexeme, false);
+        unused.put(name.lexeme, name);
+    }
+
+    private void define(Token name) {
+        scopes.peek().updateVar(name.lexeme, true);
+    }
+
+    private void resolveLocal(Expr expr, Token name) {
+        for (int i = scopes.size() - 1; i >= 0; i--) {
+            var scope = scopes.get(i);
+            if (scope.vars.containsKey(name.lexeme)) {
+                interpreter.resolve(
+                    expr,
+                    scopes.size() - 1 - i,
+                    scope.vars.get(name.lexeme).index
+                );
+                return;
+            }
+        }
+    }
+
+    private void resolveFunction(List<Token> params, List<Stmt> body, FunctionType type) {
+        FunctionType enclosing = currFunc;
+        currFunc = type;
+        boolean prevWhile = insideWhile;
+        insideWhile = false;
+        beginScope();
+        for (var param : params) {
+            declare(param);
+            define(param);
+        }
+        resolve(body);
+        endScope();
+        currFunc = enclosing;
+        insideWhile = prevWhile;
+    }
+
+    public void printUnusedVariables() {
+        for (var variable : unused.values())
+            Lox.warning(variable.line, "unused variable '" + variable.lexeme + "'");
     }
 
     @Override
@@ -39,10 +123,10 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
             currClass = ClassType.SUBCLASS;
             resolve(stmt.superclass);
             beginScope();
-            scopes.peek().put("super", true);
+            scopes.peek().putVar("super", true);
         }
         beginScope();
-        scopes.peek().put("this", true);
+        scopes.peek().putVar("this", true);
         for (var method : stmt.methods) {
             FunctionType decl = method.name.lexeme.equals("init") ?
                                 FunctionType.CTOR : FunctionType.METHOD;
@@ -131,8 +215,6 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         return null;
     }
 
-
-
     @Override
     public Void visitBinaryExpr(Expr.Binary expr) {
         resolve(expr.left);
@@ -189,7 +271,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitVariableExpr(Expr.Variable expr) {
-        if (!scopes.isEmpty() && scopes.peek().get(expr.name.lexeme) == Boolean.FALSE)
+        var variable = scopes.peek().vars.get(expr.name.lexeme);
+        if (variable != null && variable.declared == false)
             Lox.error(expr.name, "can't read local variable in its own initializer");
         unused.remove(expr.name.lexeme);
         resolveLocal(expr, expr.name);
@@ -223,69 +306,5 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     @Override
     public Void visitLiteralExpr(Expr.Literal expr) {
         return null;
-    }
-
-    public void resolve(List<Stmt> statements) {
-        for (var stmt : statements)
-            resolve(stmt);
-    }
-
-    private void resolve(Stmt stmt) { stmt.accept(this); }
-    private void resolve(Expr expr) { expr.accept(this); }
-
-    private void beginScope() { scopes.push(new HashMap<String, Boolean>()); }
-
-    private void endScope()
-    {
-        var scope = scopes.pop();
-        for (var variable : scope.entrySet())
-            if (!variable.getValue())
-                Lox.warning(0, "variable '" + variable.getKey() + "' is never used");
-    }
-
-    private void declare(Token name) {
-        if (scopes.isEmpty())
-            return;
-        Map<String, Boolean> scope = scopes.peek();
-        if (scope.containsKey(name.lexeme))
-            Lox.error(name, "redefinition of variable " + name.lexeme + " in the same scope");
-        scope.put(name.lexeme, false);
-        unused.put(name.lexeme, name);
-    }
-
-    private void define(Token name) {
-        if (scopes.isEmpty())
-            return;
-        scopes.peek().put(name.lexeme, true);
-    }
-
-    private void resolveLocal(Expr expr, Token name) {
-        for (int i = scopes.size() - 1; i >= 0; i--) {
-            if (scopes.get(i).containsKey(name.lexeme)) {
-                interpreter.resolve(expr, scopes.size() - 1 - i);
-                return;
-            }
-        }
-    }
-
-    private void resolveFunction(List<Token> params, List<Stmt> body, FunctionType type) {
-        FunctionType enclosing = currFunc;
-        currFunc = type;
-        boolean prevWhile = insideWhile;
-        insideWhile = false;
-        beginScope();
-        for (var param : params) {
-            declare(param);
-            define(param);
-        }
-        resolve(body);
-        endScope();
-        currFunc = enclosing;
-        insideWhile = prevWhile;
-    }
-
-    public void printUnusedVariables() {
-        for (var variable : unused.values())
-            Lox.warning(variable.line, "unused variable '" + variable.lexeme + "'");
     }
 }

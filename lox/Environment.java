@@ -1,45 +1,47 @@
 package lox;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 
 class Environment {
     public final Environment enclosing;
-    private final Map<String, Object> values = new HashMap<>();
-    private final Set<String> uninitialized = new HashSet<>();
+    private final List<String> names = new ArrayList<>();
+    private final List<Object> values = new ArrayList<>();
+    private final Set<Integer> uninitialized = new HashSet<>();
 
     public Environment()                      { enclosing = null; }
     public Environment(Environment enclosing) { this.enclosing = enclosing; }
 
-    public void declare(String name) {
-        values.put(name, null);
-        uninitialized.add(name);
+    public int declare(String name) {
+        int i = values.size();
+        uninitialized.add(i);
+        values.add(null);
+        names.add(name);
+        return i;
     }
 
-    public boolean declared(String name) {
-        return values.containsKey(name);
+    public void assign(int index, Object value) {
+        uninitialized.remove(index);
+        values.set(index, value);
     }
 
-    private Object uncheckedGet(String name) {
-        return values.get(name);
+    private Object uncheckedGet(int index) {
+        return values.get(index);
     }
 
-    public Object getValue(Token name) {
-        if (uninitialized.contains(name.lexeme))
+    public Object get(int index, Token name) {
+        if (uninitialized.contains(index))
             throw new RuntimeError(name, "uninitialized variable access");
-        return uncheckedGet(name.lexeme);
+        return uncheckedGet(index);
     }
 
-    public void setValue(String name, Object value) {
-        uninitialized.remove(name);
-        values.put(name, value);
-    }
-
-    // declares and set a variable in one go
-    public void define(String name, Object value) {
-        values.put(name, value);
+    public void define(String optName, Object value) {
+        values.add(value);
+        names.add(optName);
     }
 
     private Environment ancestor(int dist) {
@@ -49,28 +51,20 @@ class Environment {
         return env;
     }
 
-    public Object getAt(int dist, String name) {
-        return ancestor(dist).uncheckedGet(name);
+    public Object getAt(int dist, int index, Token t) {
+        return ancestor(dist).get(index, t);
     }
 
-    public void assignAt(int dist, Token name, Object value) {
-        ancestor(dist).setValue(name.lexeme, value);
+    public void assignAt(int dist, int index, Object value) {
+        ancestor(dist).assign(index, value);
     }
 
-    public Object get(Token name) {
-        if (declared(name.lexeme))
-            return getValue(name);
-        else if (enclosing == null)
-            throw new RuntimeError(name, "undefined variable '" + name.lexeme + "'.");
-        return enclosing.get(name);
-    }
-
-    public void assign(Token name, Object value) {
-        if (declared(name.lexeme)) {
-            setValue(name.lexeme, value);
-            return;
-        } else if (enclosing == null)
-            throw new RuntimeError(name, "undefined variable '" + name.lexeme + "'");
-        enclosing.assign(name, value);
+    // fix-up for 'this' variables. (or, you could say, a hack)
+    public Object getByNameAt(int dist, String name) {
+        var env = ancestor(dist);
+        int i = env.names.indexOf(name);
+        assert i != -1;
+        var v = env.values.get(i);
+        return uncheckedGet(i);
     }
 }

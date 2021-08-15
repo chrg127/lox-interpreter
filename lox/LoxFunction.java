@@ -31,11 +31,11 @@ class LoxFunction implements LoxCallable {
             interpreter.execBlock(body, env);
         } catch (Return retval) {
             if (isCtor)
-                return closure.getAt(0, "this");
+                return closure.getByNameAt(0, "this");
             return retval.value;
         }
         if (isCtor)
-            return closure.getAt(0, "this");
+            return closure.getByNameAt(0, "this");
         return null;
     }
 

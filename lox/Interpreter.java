@@ -9,20 +9,33 @@ import java.util.stream.Collectors;
 class Interpreter implements Expr.Visitor<Object>,
                              Stmt.Visitor<Void> {
     private Environment env = new Environment();
-    final Environment globals = env;
-    private final Map<Expr, Integer> locals = new HashMap<>();
+    private Resolver resolver;
+
+    static class LocalInfo {
+        int dist, index;
+        LocalInfo(int dist, int index) { this.dist = dist; this.index = index; }
+    }
+
+    private final Map<Expr, LocalInfo> vars = new HashMap<>();
 
     public Interpreter() {
-        globals.define("clock", new LoxCallable() {
+        // at this point, env must be the global environment
+        env.define("clock", new LoxCallable() {
             @Override
             public int arity() { return 0; }
-            public Object call(Interpreter interpreter,
-                               List<Object> arguments) {
+            public Object call(Interpreter interpreter, List<Object> arguments) {
                 return (double)System.currentTimeMillis() / 1000.0;
             }
             @Override
             public String toString() { return "<native fn clock>"; }
         });
+        var builtins = new ArrayList<String>();
+        builtins.add("clock");
+        resolver = new Resolver(this, builtins);
+    }
+
+    public Resolver getResolver() {
+        return resolver;
     }
 
     public void interpret(List<Stmt> statements) {
@@ -48,33 +61,8 @@ class Interpreter implements Expr.Visitor<Object>,
         }
     }
 
-    @Override
-    public Void visitClassStmt(Stmt.Class stmt) {
-        Object superclass = null;
-        if (stmt.superclass != null) {
-            superclass = eval(stmt.superclass);
-            if (!(superclass instanceof LoxClass))
-                throw new RuntimeError(stmt.superclass.name, "superclass must be a class");
-        }
-        env.declare(stmt.name.lexeme);
-        if (stmt.superclass != null) {
-            env = new Environment(env);
-            env.define("super", superclass);
-        }
-        Map<String, LoxFunction> methods = new HashMap<>();
-        for (var method : stmt.methods) {
-            LoxFunction function = new LoxFunction(method, env, method.name.lexeme.equals("init"));
-            methods.put(method.name.lexeme, function);
-        }
-        LoxClass klass = new LoxClass(stmt.name.lexeme, (LoxClass) superclass, methods);
-        if (superclass != null)
-            env = env.enclosing;
-        env.setValue(stmt.name.lexeme, klass);
-        return null;
-    }
-
-    public void resolve(Expr expr, int depth) {
-        locals.put(expr, depth);
+    public void resolve(Expr expr, int depth, int index) {
+        vars.put(expr, new LocalInfo(depth, index));
     }
 
     public void execBlock(List<Stmt> statements, Environment env) {
@@ -138,9 +126,43 @@ class Interpreter implements Expr.Visitor<Object>,
         }
     }
 
+    private LocalInfo lookupVariableInfo(Token name, Expr expr) {
+        var info = vars.get(expr);
+        if (info == null)
+            throw new RuntimeError(name, "undefined variable '" + name.lexeme + "'");
+        return info;
+    }
+
     private Object lookupVariable(Token name, Expr expr) {
-        Integer dist = locals.get(expr);
-        return dist != null ? env.getAt(dist, name.lexeme) : globals.get(name);
+        var info = lookupVariableInfo(name, expr);
+        return env.getAt(info.dist, info.index, name);
+    }
+
+    @Override
+    public Void visitClassStmt(Stmt.Class stmt) {
+        Object superclass = null;
+        if (stmt.superclass != null) {
+            superclass = eval(stmt.superclass);
+            if (!(superclass instanceof LoxClass))
+                throw new RuntimeError(stmt.superclass.name, "superclass must be a class");
+        }
+
+        int classIndex = env.declare(stmt.name.lexeme);
+        if (stmt.superclass != null) {
+            env = new Environment(env);
+            env.define("super", superclass);
+        }
+
+        var methods = stmt.methods.stream().collect(Collectors.toMap(
+                    m -> m.name.lexeme,
+                    m -> new LoxFunction(m, env, m.name.lexeme.equals("init"))));
+
+        LoxClass klass = new LoxClass(stmt.name.lexeme, (LoxClass) superclass, methods);
+        if (superclass != null)
+            env = env.enclosing;
+
+        env.assign(classIndex, klass);
+        return null;
     }
 
     @Override
@@ -152,9 +174,9 @@ class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Void visitVarStmt(Stmt.Var stmt) {
-        env.declare(stmt.name.lexeme);
+        int varIndex = env.declare(stmt.name.lexeme);
         if (stmt.initializer != null)
-            env.setValue(stmt.name.lexeme, eval(stmt.initializer));
+            env.assign(varIndex, eval(stmt.initializer));
         return null;
     }
 
@@ -244,12 +266,9 @@ class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Object visitAssignExpr(Expr.Assign expr) {
+        var info = lookupVariableInfo(expr.name, expr);
         Object value = eval(expr.value);
-        Integer dist = locals.get(expr);
-        if (dist != null)
-            env.assignAt(dist, expr.name, value);
-        else
-            globals.assign(expr.name, value);
+        env.assignAt(info.dist, info.index, value);
         return value;
     }
 
@@ -328,9 +347,9 @@ class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Object visitSuperExpr(Expr.Super expr) {
-        int dist = locals.get(expr);
-        LoxClass superclass = (LoxClass) env.getAt(dist, "super");
-        LoxInstance obj = (LoxInstance) env.getAt(dist - 1, "this");
+        var info = lookupVariableInfo(expr.keyword, expr);
+        LoxClass superclass = (LoxClass) env.getAt(info.dist, info.index, expr.keyword);
+        LoxInstance obj = (LoxInstance) env.getByNameAt(info.dist - 1, "this");
         LoxFunction method = superclass.findMethod(expr.method.lexeme);
         if (method == null)
             throw new RuntimeError(expr.method, "undefined property '" + expr.method.lexeme + "'");

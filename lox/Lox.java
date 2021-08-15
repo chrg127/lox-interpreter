@@ -85,11 +85,14 @@ public class Lox {
         if (hadError)
             return;
         // printAST(statements);
-        Resolver resolver = new Resolver(interpreter);
+        Resolver resolver = interpreter.getResolver();
         resolver.resolve(statements);
         if (hadError)
             return;
-        resolver.printUnusedVariables();
+
+        // don't bother users at the prompt
+        if (!fromPrompt)
+            resolver.printUnusedVariables();
 
         if (fromPrompt && statements.size() == 1 && statements.get(0) instanceof Stmt.Expression) {
             Stmt.Expression stmt = (Stmt.Expression) statements.get(0);
