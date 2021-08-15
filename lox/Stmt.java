@@ -20,11 +20,13 @@ abstract class Stmt {
         final Token name;
         final Expr.Variable superclass;
         final List<Stmt.Function> methods;
+        final List<Stmt.Function> statics;
 
-        Class(Token name, Expr.Variable superclass, List<Stmt.Function> methods) {
+        Class(Token name, Expr.Variable superclass, List<Stmt.Function> methods, List<Stmt.Function> statics) {
             this.name = name;
             this.superclass = superclass;
             this.methods = methods;
+            this.statics = statics;
         }
 
         @Override

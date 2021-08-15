@@ -157,7 +157,11 @@ class Interpreter implements Expr.Visitor<Object>,
                     m -> m.name.lexeme,
                     m -> new LoxFunction(m, env, m.name.lexeme.equals("init"))));
 
-        LoxClass klass = new LoxClass(stmt.name.lexeme, (LoxClass) superclass, methods);
+        var statics = stmt.statics.stream().collect(Collectors.toMap(
+                    s -> s.name.lexeme,
+                    s -> new LoxFunction(s, env, false)));
+
+        LoxClass klass = new LoxClass(stmt.name.lexeme, (LoxClass) superclass, methods, statics);
         if (superclass != null)
             env = env.enclosing;
 
@@ -308,7 +312,9 @@ class Interpreter implements Expr.Visitor<Object>,
             throw new RuntimeError(expr.paren, "can only call functions and classes");
         LoxCallable function = (LoxCallable)callee;
         if (args.size() != function.arity())
-            throw new RuntimeError(expr.paren, "expected " + function.arity() + "arguments, but got " + args.size());
+            throw new RuntimeError(expr.paren, "expected " + function.arity() +
+                                               " " + (function.arity() == 1 ? "argument" : "arguments") +
+                                               " but got " + args.size());
         return function.call(this, args);
     }
 

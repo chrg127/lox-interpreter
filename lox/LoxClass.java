@@ -3,14 +3,23 @@ package lox;
 import java.util.List;
 import java.util.Map;
 
-class LoxClass implements LoxCallable {
+class LoxClass extends LoxInstance implements LoxCallable {
     final String name;
     final LoxClass superclass;
     private final Map<String, LoxFunction> methods;
 
-    LoxClass(String name, LoxClass superclass, Map<String, LoxFunction> methods) {
+    LoxClass(String name, LoxClass superclass, Map<String, LoxFunction> methods, Map<String, LoxFunction> statics) {
+        super(new LoxClass(name, statics));
         this.name = name;
         this.superclass = superclass;
+        this.methods = methods;
+    }
+
+    // this ctor creates a metaclass.
+    LoxClass(String name, Map<String, LoxFunction> methods) {
+        super(null);
+        this.name = name;
+        this.superclass = null;
         this.methods = methods;
     }
 

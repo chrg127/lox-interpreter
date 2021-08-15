@@ -26,9 +26,9 @@ class Parser {
 
     private Stmt decl() {
         try {
-            if (match(VAR)) return varDecl();
+            if (match(VAR))   return varDecl();
             if (match(CLASS)) return classDecl();
-            if (match(FUN)) return function("function");
+            if (match(FUN))   return function("function");
             return stmt();
         } catch (ParseError error) {
             synchronize();
@@ -46,6 +46,16 @@ class Parser {
         return new Stmt.Var(name, initializer);
     }
 
+    private static class ClassFunction {
+        Stmt.Function stmt;
+        boolean isStatic;
+
+        ClassFunction(Stmt.Function stmt, boolean isStatic) {
+            this.stmt = stmt;
+            this.isStatic = isStatic;
+        }
+    }
+
     private Stmt classDecl() {
         Token name = consume(IDENT, "expected class name");
         Expr.Variable superclass = null;
@@ -55,10 +65,21 @@ class Parser {
         }
         consume(LEFT_BRACE, "expected '{' before class body");
         List<Stmt.Function> methods = new ArrayList<>();
-        while (!check(RIGHT_BRACE) && !isAtEnd())
-            methods.add(function("method"));
+        List<Stmt.Function> statics = new ArrayList<>();
+        while (!check(RIGHT_BRACE) && !isAtEnd()) {
+            var f = classFunction();
+            if (f.isStatic)
+                statics.add(f.stmt);
+            else
+                methods.add(f.stmt);
+        }
         consume(RIGHT_BRACE, "expected '}' after class body");
-        return new Stmt.Class(name, superclass, methods);
+        return new Stmt.Class(name, superclass, methods, statics);
+    }
+
+    private ClassFunction classFunction() {
+        boolean isStatic = match(STATIC);
+        return new ClassFunction(function(isStatic ? "static function" : "method"), isStatic);
     }
 
     private Stmt stmt() {

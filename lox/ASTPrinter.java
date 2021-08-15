@@ -38,7 +38,8 @@ class ASTPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
     public String visitClassStmt(Stmt.Class stmt) {
         return parenthesize("class " + stmt.name.lexeme, a -> a,
                 stmt.superclass == null ? "" : parenthesize("superclass", EXPR, stmt.superclass),
-                parenthesizeList("", e -> e.accept(this), stmt.methods));
+                parenthesizeList("statics", e -> e.accept(this), stmt.statics),
+                parenthesizeList("methods", e -> e.accept(this), stmt.methods));
     }
 
     @Override

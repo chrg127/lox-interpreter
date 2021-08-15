@@ -5,10 +5,11 @@ decl            : class_decl
                 | var_decl
                 | stmt ;
 
-class_decl      : "class" IDENT ( "<" IDENT )? "{" function* "}" ;
+class_decl      : "class" IDENT ( "<" IDENT )? "{" ( static_fun | function )* "}" ;
 fun_decl        : "fun" function* ;
 var_decl        : "var" IDENT ( "=" expr )? ";"
 
+static_fun      : "static" function ;
 function        : IDENT funbody ;
 funbody         : "(" params? ")" block ;
 params          : IDENT ( "," IDENT )* ;
