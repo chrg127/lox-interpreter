@@ -1,3 +1,3 @@
-build
-lox/Expr.java
-lox/Stmt.java
+jlox/build
+jlox/lox/Expr.java
+jlox/lox/Stmt.java
