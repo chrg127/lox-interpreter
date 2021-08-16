@@ -30,7 +30,7 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         }
     }
 
-    private enum FunctionType { NONE, FUNCTION, CTOR, METHOD }
+    private enum FunctionType { NONE, FUNCTION, CTOR, METHOD, GETTER, STATIC }
     private enum ClassType    { NONE, CLASS, SUBCLASS }
 
     private final Interpreter interpreter;
@@ -117,6 +117,12 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         insideWhile = false;
         declare(stmt.name);
         define(stmt.name);
+
+        // resolve static functions here, before any scope created for 'super' and 'this'
+        // TODO: resolve bug with global variables
+        for (var s : stmt.statics)
+            resolveFunction(s.params, s.body, FunctionType.STATIC);
+
         if (stmt.superclass != null) {
             if (stmt.name.lexeme.equals(stmt.superclass.name.lexeme))
                 Lox.error(stmt.superclass.name, "can't inherit from itself");
@@ -125,14 +131,17 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
             beginScope();
             scopes.peek().putVar("super", true);
         }
+
         beginScope();
         scopes.peek().putVar("this", true);
         for (var method : stmt.methods) {
-            FunctionType decl = method.name.lexeme.equals("init") ?
-                                FunctionType.CTOR : FunctionType.METHOD;
+            FunctionType decl = method.name.lexeme.equals("init") ?  FunctionType.CTOR : FunctionType.METHOD;
             resolveFunction(method.params, method.body, decl);
         }
+        for (var getter : stmt.getters)
+            resolveFunction(getter.params, getter.body, FunctionType.GETTER);
         endScope();
+
         if (stmt.superclass != null)
             endScope();
         currClass = enclosing;

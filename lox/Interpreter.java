@@ -161,7 +161,11 @@ class Interpreter implements Expr.Visitor<Object>,
                     s -> s.name.lexeme,
                     s -> new LoxFunction(s, env, false)));
 
-        LoxClass klass = new LoxClass(stmt.name.lexeme, (LoxClass) superclass, methods, statics);
+        var getters = stmt.getters.stream().collect(Collectors.toMap(
+                    g -> g.name.lexeme,
+                    g -> new LoxFunction(g, env, false)));
+
+        LoxClass klass = new LoxClass(stmt.name.lexeme, (LoxClass) superclass, methods, statics, getters);
         if (superclass != null)
             env = env.enclosing;
 
@@ -327,7 +331,7 @@ class Interpreter implements Expr.Visitor<Object>,
     public Object visitGetExpr(Expr.Get expr) {
         Object obj = eval(expr.object);
         if (obj instanceof LoxInstance)
-            return ((LoxInstance) obj).get(expr.name);
+            return ((LoxInstance) obj).get(expr.name, this);
         throw new RuntimeError(expr.name, "only instances have properties");
     }
 

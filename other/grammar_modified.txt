@@ -5,7 +5,7 @@ decl            : class_decl
                 | var_decl
                 | stmt ;
 
-class_decl      : "class" IDENT ( "<" IDENT )? "{" ( static_fun | function )* "}" ;
+class_decl      : "class" IDENT ( "<" IDENT )? "{" ( static_fun | getter | function )* "}" ;
 fun_decl        : "fun" function* ;
 var_decl        : "var" IDENT ( "=" expr )? ";"
 
@@ -15,6 +15,9 @@ funbody         : "(" params? ")" block ;
 params          : IDENT ( "," IDENT )* ;
 // 'assignment' here will skip comma expression, since those can't appear in function arguments
 funargs         : assignment ( "," assignment )* ;
+
+getter          : IDENT block ;
+
 
 stmt            : expr_stmt
                 | for_stmt

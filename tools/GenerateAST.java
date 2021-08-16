@@ -28,7 +28,8 @@ public class GenerateAST {
             "Literal    : Object value"
         ));
         defineAst(dir, "Stmt", Arrays.asList(
-            "Class      : Token name, Expr.Variable superclass, List<Stmt.Function> methods, List<Stmt.Function> statics",
+            "Class      : Token name, Expr.Variable superclass, List<Stmt.Function> methods, " +
+                         "List<Stmt.Function> statics, List<Stmt.Function> getters",
             "Function   : Token name, List<Token> params, List<Stmt> body",
             "Var        : Token name, Expr initializer",
             "Expression : Expr expression",

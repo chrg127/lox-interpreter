@@ -2,17 +2,21 @@ package lox;
 
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 class LoxClass extends LoxInstance implements LoxCallable {
     final String name;
     final LoxClass superclass;
     private final Map<String, LoxFunction> methods;
+    private final Map<String, LoxFunction> getters;
 
-    LoxClass(String name, LoxClass superclass, Map<String, LoxFunction> methods, Map<String, LoxFunction> statics) {
+    LoxClass(String name, LoxClass superclass, Map<String, LoxFunction> methods,
+             Map<String, LoxFunction> statics, Map<String, LoxFunction> getters) {
         super(new LoxClass(name, statics));
         this.name = name;
         this.superclass = superclass;
         this.methods = methods;
+        this.getters = getters;
     }
 
     // this ctor creates a metaclass.
@@ -21,6 +25,7 @@ class LoxClass extends LoxInstance implements LoxCallable {
         this.name = name;
         this.superclass = null;
         this.methods = methods;
+        this.getters = new HashMap<>();
     }
 
     @Override
@@ -49,5 +54,15 @@ class LoxClass extends LoxInstance implements LoxCallable {
     @Override
     public String toString() {
         return name;
+    }
+
+    public boolean hasGetter(String name) {
+        return getters.containsKey(name);
+    }
+
+    public Object getGetterResult(String name, Interpreter interpreter, LoxInstance instance) {
+        LoxFunction getter = getters.get(name);
+        LoxFunction fn = getter.bind(instance);
+        return fn.call(interpreter, null);
     }
 }

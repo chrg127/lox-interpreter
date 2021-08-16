@@ -9,6 +9,29 @@ import static lox.Token.Type.*;
 class Parser {
     private static class ParseError extends RuntimeException {}
 
+    private static class FunDetails {
+        public List<Token> params;
+        public List<Stmt> body;
+
+        FunDetails(List<Token> params, List<Stmt> body) {
+            this.params = params;
+            this.body = body;
+        }
+    }
+
+    private enum ClassFunctionKind { STATIC, GETTER, METHOD }
+
+    private static class ClassFunction {
+        Stmt.Function stmt;
+        ClassFunctionKind kind;
+
+        ClassFunction(Stmt.Function stmt, ClassFunctionKind kind) {
+            this.stmt = stmt;
+            this.kind = kind;
+        }
+    }
+
+
     private final List<Token> tokens;
     private int curr = 0;
 
@@ -46,16 +69,6 @@ class Parser {
         return new Stmt.Var(name, initializer);
     }
 
-    private static class ClassFunction {
-        Stmt.Function stmt;
-        boolean isStatic;
-
-        ClassFunction(Stmt.Function stmt, boolean isStatic) {
-            this.stmt = stmt;
-            this.isStatic = isStatic;
-        }
-    }
-
     private Stmt classDecl() {
         Token name = consume(IDENT, "expected class name");
         Expr.Variable superclass = null;
@@ -63,23 +76,37 @@ class Parser {
             consume(IDENT, "expected superclass name after '<'");
             superclass = new Expr.Variable(previous());
         }
+
         consume(LEFT_BRACE, "expected '{' before class body");
         List<Stmt.Function> methods = new ArrayList<>();
         List<Stmt.Function> statics = new ArrayList<>();
+        List<Stmt.Function> getters = new ArrayList<>();
         while (!check(RIGHT_BRACE) && !isAtEnd()) {
             var f = classFunction();
-            if (f.isStatic)
-                statics.add(f.stmt);
-            else
-                methods.add(f.stmt);
+            switch (f.kind) {
+            case STATIC: statics.add(f.stmt); break;
+            case GETTER: getters.add(f.stmt); break;
+            case METHOD: methods.add(f.stmt); break;
+            }
         }
         consume(RIGHT_BRACE, "expected '}' after class body");
-        return new Stmt.Class(name, superclass, methods, statics);
+
+        return new Stmt.Class(name, superclass, methods, statics, getters);
     }
 
     private ClassFunction classFunction() {
-        boolean isStatic = match(STATIC);
-        return new ClassFunction(function(isStatic ? "static function" : "method"), isStatic);
+        if (match(STATIC))
+            return new ClassFunction(function("static function"), ClassFunctionKind.STATIC);
+        Token name = consume(IDENT, "expected method or getter name");
+        if (!check(LEFT_PAREN)) {
+            // getter
+            consume(LEFT_BRACE, "expected '{' before getter body");
+            List<Stmt> body = block();
+            return new ClassFunction(new Stmt.Function(name, new ArrayList<Token>(), body), ClassFunctionKind.GETTER);
+        }
+        // function
+        var details = funbody("method");
+        return new ClassFunction(new Stmt.Function(name, details.params, details.body), ClassFunctionKind.METHOD);
     }
 
     private Stmt stmt() {
@@ -107,11 +134,8 @@ class Parser {
         Stmt body = stmt();
 
         // desugaring
-        if (increment != null) {
-            body = new Stmt.Block(
-                Arrays.asList(body, new Stmt.Expression(increment))
-            );
-        }
+        if (increment != null)
+            body = new Stmt.Block(Arrays.asList(body, new Stmt.Expression(increment)));
         if (cond == null)
             cond = new Expr.Literal(true);
         body = new Stmt.While(cond, body);
@@ -129,7 +153,6 @@ class Parser {
         Stmt elseBranch = match(ELSE) ? stmt() : null;
         return new Stmt.If(cond, thenBranch, elseBranch);
     }
-
 
     private Stmt printStmt() {
         Expr value = expression();
@@ -173,16 +196,6 @@ class Parser {
         Expr expr = expression();
         consume(SEMICOLON, "expected ';' after expression");
         return new Stmt.Expression(expr);
-    }
-
-    static class FunDetails {
-        public List<Token> params;
-        public List<Stmt> body;
-
-        FunDetails(List<Token> params, List<Stmt> body) {
-            this.params = params;
-            this.body = body;
-        }
     }
 
     private Stmt.Function function(String kind) {
