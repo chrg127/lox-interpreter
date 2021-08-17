@@ -23,5 +23,6 @@ void chunk_init(Chunk *chunk);
 void chunk_write(Chunk *chunk, u8 byte, int line);
 void chunk_free(Chunk *chunk);
 int chunk_add_const(Chunk *chunk, Value value);
+void chunk_write_const(Chunk *chunk, Value value, int line);
 
 #endif

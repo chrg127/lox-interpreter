@@ -37,3 +37,14 @@ int chunk_add_const(Chunk *chunk, Value value)
     valuearray_write(&chunk->constants, value);
     return chunk->constants.size - 1;
 }
+
+void chunk_write_const(Chunk *chunk, Value value, int line)
+{
+    int i = chunk_add_const(chunk, value);
+    chunk_write(chunk, i >= 0 ? OP_CONSTANT_LONG : OP_CONSTANT, line);
+    chunk_write(chunk, i & 0xFF, line);
+    if (i >= 0) {
+        chunk_write(chunk, (i >>  8) & 0xFF, line);
+        chunk_write(chunk, (i >> 16) & 0xFF, line);
+    }
+}

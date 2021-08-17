@@ -10,9 +10,9 @@ int main(int argc, char *argv[])
     Chunk chunk;
     chunk_init(&chunk);
 
-    int i = chunk_add_const(&chunk, 1.2, 123);
-    chunk_write(&chunk, OP_CONSTANT, 123);
-    chunk_write(&chunk, i, 123);
+    chunk_write_const(&chunk, 1.2, 123);
+    chunk_write_const(&chunk, 1.6, 123);
+    chunk_write_const(&chunk, 1.11, 123);
 
     chunk_write(&chunk, OP_RETURN, 123);
 

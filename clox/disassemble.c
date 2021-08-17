@@ -18,6 +18,18 @@ static int const_instr(const char *name, Chunk *chunk, size_t offset)
     return offset + 2;
 }
 
+static int const_long_instr(const char *name, Chunk *chunk, size_t offset)
+{
+    u8 i1 = chunk->code[offset + 1];
+    u8 i2 = chunk->code[offset + 2];
+    u8 i3 = chunk->code[offset + 3];
+    u32 index = i1 | i2 << 8 | i3 << 16;
+    printf("%-16s %4d '", name, index);
+    value_print(chunk->constants.values[index]);
+    printf("'\n");
+    return offset + 4;
+}
+
 void disassemble(Chunk *chunk, const char *name)
 {
     printf("== %s ==\n", name);
@@ -37,6 +49,7 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     u8 instr = chunk->code[offset];
     switch (instr) {
     case OP_CONSTANT: return const_instr("OP_CONSTANT", chunk, offset);
+    case OP_CONSTANT_LONG: return const_long_instr("OP_CONSTANT_LONG", chunk, offset);
     case OP_RETURN:   return simple_instr("OP_RETURN", offset);
     default:
         printf("unknown opcode %d\n", instr);
