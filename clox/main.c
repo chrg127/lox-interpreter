@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
 
     chunk_write_const(&chunk, 1.2, 123);
     chunk_write_const(&chunk, 1.6, 123);
-    chunk_write_const(&chunk, 1.11, 123);
+    chunk_write_const(&chunk, 1.11, 134);
 
     chunk_write(&chunk, OP_RETURN, 123);
 

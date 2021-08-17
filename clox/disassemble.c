@@ -41,10 +41,11 @@ void disassemble(Chunk *chunk, const char *name)
 size_t disassemble_opcode(Chunk *chunk, size_t offset)
 {
     printf("%04ld ", offset);
-    if (offset != 0 && chunk->lines[offset] == chunk->lines[offset - 1])
+    size_t line = chunk_get_line(chunk, offset);
+    if (offset != 0 && line == chunk_get_line(chunk, offset-1))
         printf("    | ");
     else
-        printf("%5d ", chunk->lines[offset]);
+        printf("%5ld ", line);
 
     u8 instr = chunk->code[offset];
     switch (instr) {
