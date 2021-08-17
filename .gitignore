@@ -1,3 +1,8 @@
 jlox/build
 jlox/lox/Expr.java
 jlox/lox/Stmt.java
+clox/debug
+clox/release
+*.o
+*.class
+*.d
