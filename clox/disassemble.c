@@ -37,6 +37,11 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     u8 instr = chunk->code[offset];
     switch (instr) {
     case OP_CONSTANT: return const_instr("OP_CONSTANT", chunk, offset);
+    case OP_NEGATE:   return simple_instr("OP_NEGATE", offset);
+    case OP_ADD:      return simple_instr("OP_ADD", offset);
+    case OP_SUB:      return simple_instr("OP_SUB", offset);
+    case OP_MUL:      return simple_instr("OP_MUL", offset);
+    case OP_DIV:      return simple_instr("OP_DIV", offset);
     case OP_RETURN:   return simple_instr("OP_RETURN", offset);
     default:
         printf("unknown opcode %d\n", instr);

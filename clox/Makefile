@@ -3,8 +3,8 @@ programname := clox
 # can be: debug, release
 build := debug
 
-_objs_main := chunk.o disassemble.o memory.o main.o value.o
-libs := -lm
+_objs_main := chunk.o disassemble.o memory.o main.o value.o vm.o
+libs :=
 CC := gcc
 CFLAGS := -I. -std=c11 -Wall -Wextra -pipe \
 		 -Wcast-align -Wcast-qual -Wpointer-arith \
@@ -31,7 +31,7 @@ $(outdir)/$(programname): $(objs_main)
 
 $(outdir)/%.o: %.c
 	$(info Compiling $< ...)
-	$(CC) $(CFLAGS) $(flags_deps) -c $< -o $@
+	@$(CC) $(CFLAGS) $(flags_deps) -c $< -o $@
 
 $(outdir):
 	mkdir -p $(outdir)
