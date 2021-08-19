@@ -1,6 +1,7 @@
 #include "vm.h"
 
 #include <stdio.h>
+#include "compiler.h"
 #include "disassemble.h"
 
 #define DEBUG_TRACE_EXECUTION
@@ -73,11 +74,10 @@ void vm_free()
 
 }
 
-VMResult vm_interpret(Chunk *chunk)
+VMResult vm_interpret(const char *src)
 {
-    vm.chunk = chunk;
-    vm.ip = vm.chunk->code;
-    return run();
+    compile(src);
+    return VM_OK;
 }
 
 void vm_push(Value value)
