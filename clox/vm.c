@@ -46,7 +46,9 @@ static VMResult run()
         case OP_SUB:    BINARY_OP(-); break;
         case OP_MUL:    BINARY_OP(*); break;
         case OP_DIV:    BINARY_OP(/); break;
-        case OP_NEGATE: vm_push(-vm_pop()); break;
+        case OP_NEGATE:
+            vm.sp[-1] = -vm.sp[-1];
+            break;
         case OP_RETURN:
             value_print(vm_pop());
             printf("\n");
@@ -90,3 +92,9 @@ Value vm_pop()
     return *--vm.sp;
 }
 
+VMResult vm_run_chunk(Chunk *chunk)
+{
+    vm.chunk = chunk;
+    vm.ip = chunk->code;
+    return run();
+}

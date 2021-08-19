@@ -25,5 +25,6 @@ void vm_free();
 VMResult vm_interpret(const char *src);
 void vm_push(Value value);
 Value vm_pop();
+VMResult vm_run_chunk(Chunk *chunk);
 
 #endif
