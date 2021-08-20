@@ -10,11 +10,11 @@ VM vm;
 
 static void print_stack()
 {
-    printf("stack: ");
+    printf("            stack: ");
     for (Value *p = vm.stack; p < vm.sp; p++) {
-        printf("[ ");
+        printf("[");
         value_print(*p);
-        printf(" ]");
+        printf("]");
     }
     printf("\n");
 }
@@ -32,8 +32,8 @@ static VMResult run()
 
     for (;;) {
 #ifdef DEBUG_TRACE_EXECUTION
-        print_stack();
         disassemble_opcode(vm.chunk, (size_t)(vm.ip - vm.chunk->code));
+        print_stack();
 #endif
         u8 instr = READ_BYTE();
         switch (instr) {
@@ -76,8 +76,18 @@ void vm_free()
 
 VMResult vm_interpret(const char *src)
 {
-    compile(src);
-    return VM_OK;
+    Chunk chunk;
+    chunk_init(&chunk);
+    if (!compile(src, &chunk)) {
+        chunk_free(&chunk);
+        return VM_COMPILE_ERROR;
+    }
+    vm.chunk = &chunk;
+    vm.ip = vm.chunk->code;
+    printf("=== running VM ===\n");
+    VMResult result = run();
+    chunk_free(&chunk);
+    return result;
 }
 
 void vm_push(Value value)

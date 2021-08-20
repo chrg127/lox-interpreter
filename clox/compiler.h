@@ -1,6 +1,9 @@
 #ifndef COMPILER_H_INCLUDED
 #define COMPILER_H_INCLUDED
 
-void compile(const char *src);
+#include <stdbool.h>
+#include "chunk.h"
+
+bool compile(const char *src, Chunk *chunk);
 
 #endif
