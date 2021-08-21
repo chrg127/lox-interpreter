@@ -12,6 +12,7 @@ typedef struct {
     u8 *ip;
     Value stack[STACK_MAX];
     Value *sp;
+    const char *filename;
 } VM;
 
 typedef enum {
@@ -22,7 +23,7 @@ typedef enum {
 
 void vm_init();
 void vm_free();
-VMResult vm_interpret(const char *src);
+VMResult vm_interpret(const char *src, const char *filename);
 void vm_push(Value value);
 Value vm_pop();
 

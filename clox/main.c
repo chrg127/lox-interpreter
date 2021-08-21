@@ -19,7 +19,7 @@ static void repl()
             break;
         }
 
-        vm_interpret(line);
+        vm_interpret(line, "stdin");
     }
 }
 
@@ -55,7 +55,7 @@ static char *read_file(const char *path)
 static void run_file(const char *path)
 {
     char *src = read_file(path);
-    VMResult result = vm_interpret(src);
+    VMResult result = vm_interpret(src, path);
     free(src);
 
     if (result == VM_COMPILE_ERROR)
