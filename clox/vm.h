@@ -12,8 +12,11 @@ typedef struct {
     u8 *ip;
     Value stack[STACK_MAX];
     Value *sp;
+    Obj *objects;
     const char *filename;
 } VM;
+
+extern VM vm;
 
 typedef enum {
     VM_OK,

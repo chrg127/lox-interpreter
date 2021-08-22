@@ -2,8 +2,12 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <stddef.h>
+#include <string.h>
 #include "compiler.h"
 #include "disassemble.h"
+#include "object.h"
+#include "memory.h"
 
 #define DEBUG_TRACE_EXECUTION
 
@@ -28,6 +32,19 @@ static Value peek(int dist)
 static bool is_falsey(Value value)
 {
     return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
+}
+
+static void concat()
+{
+    ObjString *b = AS_STRING(vm_pop());
+    ObjString *a = AS_STRING(vm_pop());
+    size_t len = a->len + b->len;
+    char *data = ALLOCATE(char, len+1);
+    memcpy(data,          a->data, a->len);
+    memcpy(data + a->len, b->data, b->len);
+    data[len] = '\0';
+    ObjString *result = take_string(data, len);
+    vm_push(VALUE_MKOBJ(result));
 }
 
 static void reset_stack()
@@ -87,7 +104,18 @@ static VMResult run()
             break;
         }
         case OP_GREATER: BINARY_OP(VALUE_MKBOOL, >); break;
-        case OP_ADD:    BINARY_OP(VALUE_MKNUM, +); break;
+        case OP_ADD:
+            if (IS_STRING(peek(0)) && IS_STRING(peek(1)))
+                concat();
+            else if (IS_NUM(peek(0)) && IS_NUM(peek(1))) {
+                double b = AS_NUM(vm_pop());
+                double a = AS_NUM(vm_pop());
+                vm_push(VALUE_MKNUM(a + b));
+            } else {
+                runtime_error("operands must be two numbers or two strings");
+                return VM_RUNTIME_ERROR;
+            }
+            break;
         case OP_SUB:    BINARY_OP(VALUE_MKNUM, -); break;
         case OP_MUL:    BINARY_OP(VALUE_MKNUM, *); break;
         case OP_DIV:    BINARY_OP(VALUE_MKNUM, /); break;
@@ -116,11 +144,12 @@ static VMResult run()
 void vm_init()
 {
     reset_stack();
+    vm.objects = NULL;
 }
 
 void vm_free()
 {
-
+    free_objects(vm.objects);
 }
 
 VMResult vm_interpret(const char *src, const char *filename)

@@ -3,8 +3,8 @@ programname := clox
 # can be: debug, release
 build := debug
 
-_objs_main := chunk.o compiler.o disassemble.o memory.o main.o scanner.o \
-			  value.o vm.o
+_objs_main := chunk.o compiler.o disassemble.o memory.o main.o object.o \
+			  scanner.o value.o vm.o
 libs :=
 CC := gcc
 CFLAGS := -I. -std=c11 -Wall -Wextra -pipe \
