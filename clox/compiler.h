@@ -4,6 +4,6 @@
 #include <stdbool.h>
 #include "chunk.h"
 
-bool compile(const char *src, Chunk *chunk);
+bool compile(const char *src, Chunk *chunk, const char *filename);
 
 #endif
