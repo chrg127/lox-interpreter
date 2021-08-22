@@ -25,7 +25,7 @@ static ObjString *alloc_str(char *data, size_t len)
     return str;
 }
 
-ObjString *copy_string(const char *str, size_t len)
+ObjString *obj_copy_string(const char *str, size_t len)
 {
     char *newstr = ALLOCATE(char, len + 1);
     memcpy(newstr, str, len);
@@ -33,14 +33,14 @@ ObjString *copy_string(const char *str, size_t len)
     return alloc_str(newstr, len);
 }
 
-ObjString *take_string(char *data, size_t len)
+ObjString *obj_take_string(char *data, size_t len)
 {
     return alloc_str(data, len);
 }
 
-void object_print(Value value)
+void obj_print(Value value)
 {
     switch (OBJ_TYPE(value)) {
-    case OBJ_STRING: printf("\"%s\"", AS_CSTRING(value)); break;
+    case OBJ_STRING: printf("\"%.*s\"", (int) AS_STRING(value)->len, AS_STRING(value)->data); break;
     }
 }

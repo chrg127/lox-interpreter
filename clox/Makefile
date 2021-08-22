@@ -14,7 +14,7 @@ flags_deps = -MMD -MP -MF $(@:.o=.d)
 
 ifeq ($(build),debug)
     outdir := debug
-    CFLAGS += -g -DDEBUG
+    CFLAGS += -g -DDEBUG -DDEBUG_PRINT_CODE -DDEBUG_TRACE_EXECUTION
 else
     outdir := release
     CFLAGS += -O3

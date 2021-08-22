@@ -3,11 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <stdbool.h>
 #include "scanner.h"
 #include "object.h"
 
-#define DEBUG_PRINT_CODE
 #ifdef DEBUG_PRINT_CODE
 #include "disassemble.h"
 #endif
@@ -16,6 +14,7 @@ static struct {
     Token curr, prev;
     bool had_error;
     bool panic_mode;
+    const char *file;
 } parser;
 
 typedef enum {
@@ -40,23 +39,22 @@ typedef struct {
 } ParseRule;
 
 Chunk *compiling_chunk;
-const char *compiling_file;
-
-static void expr();
-static ParseRule *get_rule(TokenType type);
-static void parse_precedence(Precedence prec);
 
 static Chunk *curr_chunk()
 {
     return compiling_chunk;
 }
 
+
+
+/* error handling */
+
 static void error_at(Token *token, const char *msg)
 {
     if (parser.panic_mode)
         return;
     parser.panic_mode = true;
-    fprintf(stderr, "%s:%d: parse error", compiling_file, token->line);
+    fprintf(stderr, "%s:%d: parse error", parser.file, token->line);
     switch (token->type) {
     case TOKEN_EOF: fprintf(stderr, " at end"); break;
     case TOKEN_ERROR: break;
@@ -66,15 +64,12 @@ static void error_at(Token *token, const char *msg)
     parser.had_error = true;
 }
 
-static void error(const char *msg)
-{
-    error_at(&parser.prev, msg);
-}
+static void error(const char *msg)      { error_at(&parser.prev, msg); }
+static void error_curr(const char *msg) { error_at(&parser.curr, msg); }
 
-static void error_curr(const char *msg)
-{
-    error_at(&parser.curr, msg);
-}
+
+
+/* utilities */
 
 static void advance()
 {
@@ -95,6 +90,10 @@ static void consume(TokenType type, const char *msg)
     }
     error_curr(msg);
 }
+
+
+
+/* emitter */
 
 static void emit_byte(u8 byte)
 {
@@ -119,33 +118,31 @@ static void emit_constant(Value value)
     emit_two(OP_CONSTANT, make_constant(value));
 }
 
-static void number()
-{
-    double value = strtod(parser.prev.start, NULL);
-    emit_constant(VALUE_MKNUM(value));
-}
 
-static void string()
-{
-    emit_constant(VALUE_MKOBJ(copy_string(parser.prev.start + 1,
-                                      parser.prev.len   - 2)));
-}
 
-static void grouping()
-{
-    expr();
-    consume(TOKEN_RIGHT_PAREN, "expected ')' after expression");
-}
+/* parser */
 
-static void unary()
+static ParseRule *get_rule(TokenType type);
+
+static void parse_precedence(Precedence prec)
 {
-    TokenType op = parser.prev.type;
-    parse_precedence(PREC_UNARY);
-    switch (op) {
-    case TOKEN_BANG:  emit_byte(OP_NOT);    break;
-    case TOKEN_MINUS: emit_byte(OP_NEGATE); break;
-    default: return; // unreachable
+    advance();
+    ParseFn prefix_rule = get_rule(parser.prev.type)->prefix;
+    if (prefix_rule == NULL) {
+        error("expected expression");
+        return;
     }
+    prefix_rule();
+    while (prec <= get_rule(parser.curr.type)->prec) {
+        advance();
+        ParseFn infix_rule = get_rule(parser.prev.type)->infix;
+        infix_rule();
+    }
+}
+
+static void expr()
+{
+    parse_precedence(PREC_ASSIGN);
 }
 
 static void binary()
@@ -169,6 +166,18 @@ static void binary()
     }
 }
 
+static void unary()
+{
+    TokenType op = parser.prev.type;
+    parse_precedence(PREC_UNARY);
+
+    switch (op) {
+    case TOKEN_BANG:  emit_byte(OP_NOT);    break;
+    case TOKEN_MINUS: emit_byte(OP_NEGATE); break;
+    default: return; // unreachable
+    }
+}
+
 static void literal()
 {
     switch (parser.prev.type) {
@@ -179,20 +188,22 @@ static void literal()
     }
 }
 
-static void parse_precedence(Precedence prec)
+static void number()
 {
-    advance();
-    ParseFn prefix_rule = get_rule(parser.prev.type)->prefix;
-    if (prefix_rule == NULL) {
-        error("expected expression");
-        return;
-    }
-    prefix_rule();
-    while (prec <= get_rule(parser.curr.type)->prec) {
-        advance();
-        ParseFn infix_rule = get_rule(parser.prev.type)->infix;
-        infix_rule();
-    }
+    double value = strtod(parser.prev.start, NULL);
+    emit_constant(VALUE_MKNUM(value));
+}
+
+static void string()
+{
+    emit_constant(VALUE_MKOBJ(obj_copy_string(parser.prev.start + 1,
+                                              parser.prev.len   - 2)));
+}
+
+static void grouping()
+{
+    expr();
+    consume(TOKEN_RIGHT_PAREN, "expected ')' at end of grouping expression");
 }
 
 static ParseRule rules[] = {
@@ -243,11 +254,6 @@ static ParseRule *get_rule(TokenType type)
     return &rules[type];
 }
 
-static void expr()
-{
-    parse_precedence(PREC_ASSIGN);
-}
-
 static void end_compiler()
 {
     emit_return();
@@ -257,13 +263,17 @@ static void end_compiler()
 #endif
 }
 
+
+
+/* public functions */
+
 bool compile(const char *src, Chunk *chunk, const char *filename)
 {
     scanner_init(src);
     compiling_chunk = chunk;
-    compiling_file  = filename;
     parser.had_error  = false;
     parser.panic_mode = false;
+    parser.file       = filename;
     advance();
     expr();
     consume(TOKEN_EOF, "expected end of expression");

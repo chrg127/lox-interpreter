@@ -34,7 +34,7 @@ void value_print(Value value)
     case VAL_BOOL: printf(AS_BOOL(value) ? "true" : "false"); break;
     case VAL_NIL:  printf("nil");                             break;
     case VAL_NUM:  printf("%g", AS_NUM(value));               break;
-    case VAL_OBJ:  object_print(value);                       break;
+    case VAL_OBJ:  obj_print(value);                          break;
     }
 }
 
