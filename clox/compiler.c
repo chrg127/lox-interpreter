@@ -21,6 +21,7 @@ static struct {
 typedef enum {
     PREC_NONE,
     PREC_ASSIGN,    // =
+    PREC_CONDEXPR,  // ?:
     PREC_OR,        // or
     PREC_AND,       // and
     PREC_EQ,        // == !=
@@ -116,6 +117,8 @@ static u8 make_constant(Value value)
 
 static void emit_constant(Value value)
 {
+    // could also be:
+    // chunk_write_const(curr_chunk(), value, parser.prev.line);
     emit_two(OP_CONSTANT, make_constant(value));
 }
 
@@ -169,6 +172,15 @@ static void binary()
     }
 }
 
+static void condexpr()
+{
+    // emit OP_TEST
+    // call to parse_precedence will emit left branch
+    parse_precedence(PREC_CONDEXPR);
+    consume(TOKEN_DCOLON, "expected ':' after left branch of '?'");
+    parse_precedence(PREC_CONDEXPR);
+}
+
 static void literal()
 {
     switch (parser.prev.type) {
@@ -207,6 +219,8 @@ static ParseRule rules[] = {
     [TOKEN_SEMICOLON]   = { NULL,       NULL,   PREC_NONE },
     [TOKEN_SLASH]       = { NULL,       binary, PREC_FACTOR },
     [TOKEN_STAR]        = { NULL,       binary, PREC_FACTOR },
+    [TOKEN_QMARK]       = { NULL,       condexpr,   PREC_CONDEXPR },
+    [TOKEN_DCOLON]      = { NULL,       NULL,   PREC_NONE },
     [TOKEN_BANG]        = { unary,      NULL,   PREC_NONE   },
     [TOKEN_BANG_EQ]     = { NULL,       binary, PREC_EQ     },
     [TOKEN_EQ]          = { NULL,       NULL,   PREC_NONE   },
