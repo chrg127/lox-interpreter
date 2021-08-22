@@ -16,7 +16,8 @@ struct Obj {
 struct ObjString {
     Obj obj;
     size_t len;
-    char *data;
+    char data[];
+    //char *data;
 };
 
 #define OBJ_TYPE(value)     (AS_OBJ(value)->type)

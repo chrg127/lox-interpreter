@@ -19,18 +19,18 @@ static Obj *alloc_obj(size_t size, ObjType type)
 
 static ObjString *alloc_str(char *data, size_t len)
 {
-    ObjString *str = ALLOCATE_OBJ(ObjString, OBJ_STRING);
+    ObjString *str = (ObjString *) alloc_obj(sizeof(ObjString) + sizeof(char)*len, OBJ_STRING); //ALLOCATE_OBJ(ObjString, OBJ_STRING);
     str->len = len;
-    str->data = data;
+    memcpy(str->data, data, len);
     return str;
 }
 
 ObjString *copy_string(const char *str, size_t len)
 {
-    char *newstr = ALLOCATE(char, len + 1);
-    memcpy(newstr, str, len);
-    newstr[len] = '\0';
-    return alloc_str(newstr, len);
+    // char *newstr = ALLOCATE(char, len + 1);
+    // memcpy(newstr, str, len);
+    // newstr[len] = '\0';
+    return alloc_str(str, len);
 }
 
 ObjString *take_string(char *data, size_t len)

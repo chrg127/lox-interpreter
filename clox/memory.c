@@ -19,8 +19,8 @@ static void free_obj(Obj *obj)
     switch (obj->type) {
     case OBJ_STRING: {
         ObjString *str = (ObjString *)obj;
-        FREE_ARRAY(char, str->data, str->len+1);
-        FREE(ObjString, obj);
+        // FREE_ARRAY(char, str->data, str->len+1);
+        FREE(ObjString, str);
         break;
     }
     }
