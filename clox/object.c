@@ -17,30 +17,39 @@ static Obj *alloc_obj(size_t size, ObjType type)
 #define ALLOCATE_OBJ(type, obj_type) \
     (type *) alloc_obj(sizeof(type), obj_type)
 
-static ObjString *alloc_str(char *data, size_t len)
+static ObjString *alloc_str(char *data, size_t len, bool owning)
 {
-    ObjString *str = (ObjString *) alloc_obj(sizeof(ObjString) + sizeof(char)*len, OBJ_STRING); //ALLOCATE_OBJ(ObjString, OBJ_STRING);
+    // using flexible array member
+    // ObjString *str = (ObjString *) alloc_obj(sizeof(ObjString) + sizeof(char)*len, OBJ_STRING);
+    ObjString *str = ALLOCATE_OBJ(ObjString, OBJ_STRING);
     str->len = len;
-    memcpy(str->data, data, len);
+    str->data = data;
+    str->owning = owning;
+    // memcpy(str->data, data, len);
     return str;
 }
 
 ObjString *copy_string(const char *str, size_t len)
 {
-    // char *newstr = ALLOCATE(char, len + 1);
-    // memcpy(newstr, str, len);
-    // newstr[len] = '\0';
-    return alloc_str(str, len);
+    char *newstr = ALLOCATE(char, len + 1);
+    memcpy(newstr, str, len);
+    newstr[len] = '\0';
+    return alloc_str(newstr, len, true);
+}
+
+ObjString *make_string_nonowning(char *str, size_t len)
+{
+    return alloc_str(str, len, false);
 }
 
 ObjString *take_string(char *data, size_t len)
 {
-    return alloc_str(data, len);
+    return alloc_str(data, len, true);
 }
 
 void object_print(Value value)
 {
     switch (OBJ_TYPE(value)) {
-    case OBJ_STRING: printf("\"%s\"", AS_CSTRING(value)); break;
+    case OBJ_STRING: printf("\"%.*s\"", AS_STRING(value)->len, AS_CSTRING(value)); break;
     }
 }

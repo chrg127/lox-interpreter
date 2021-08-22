@@ -130,8 +130,7 @@ static void number()
 
 static void string()
 {
-    emit_constant(VALUE_MKOBJ(copy_string(parser.prev.start + 1,
-                                      parser.prev.len   - 2)));
+    emit_constant(VALUE_MKOBJ(make_string_nonowning((char *)parser.prev.start + 1, parser.prev.len - 2)));
 }
 
 static void grouping()

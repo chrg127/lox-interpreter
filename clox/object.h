@@ -1,6 +1,7 @@
 #ifndef OBJECT_H_INCLUDED
 #define OBJECT_H_INCLUDED
 
+#include <stdbool.h>
 #include <stddef.h>
 #include "value.h"
 
@@ -16,8 +17,9 @@ struct Obj {
 struct ObjString {
     Obj obj;
     size_t len;
-    char data[];
-    //char *data;
+    bool owning;
+    //char data[];
+    char *data;
 };
 
 #define OBJ_TYPE(value)     (AS_OBJ(value)->type)
@@ -35,5 +37,6 @@ static inline bool is_obj_type(Value value, ObjType type)
 ObjString *copy_string(const char *str, size_t len);
 ObjString *take_string(char *data, size_t len);
 void object_print(Value value);
+ObjString *make_string_nonowning(char *str, size_t len);
 
 #endif
