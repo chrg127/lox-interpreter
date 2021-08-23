@@ -13,27 +13,3 @@ void *reallocate(void *ptr, size_t old, size_t new)
         abort();
     return res;
 }
-
-static void free_obj(Obj *obj)
-{
-    switch (obj->type) {
-    case OBJ_STRING: {
-        ObjString *str = (ObjString *)obj;
-        // comment this if using flexible array member
-        if (str->owning)
-            FREE_ARRAY(char, str->data, str->len+1);
-        FREE(ObjString, str);
-        break;
-    }
-    }
-}
-
-void free_objects(Obj *objects)
-{
-    Obj *obj = objects;
-    while (obj != NULL) {
-        Obj *next = obj->next;
-        free_obj(obj);
-        obj = next;
-    }
-}

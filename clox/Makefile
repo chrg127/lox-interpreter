@@ -4,7 +4,7 @@ programname := clox
 build := debug
 
 _objs_main := chunk.o compiler.o disassemble.o memory.o main.o object.o \
-			  scanner.o value.o vm.o
+			  scanner.o table.o value.o vm.o
 libs :=
 CC := gcc
 CFLAGS := -I. -std=c11 -Wall -Wextra -pipe \
@@ -14,7 +14,7 @@ flags_deps = -MMD -MP -MF $(@:.o=.d)
 
 ifeq ($(build),debug)
     outdir := debug
-    CFLAGS += -g -DDEBUG
+    CFLAGS += -g -DDEBUG -DDEBUG_PRINT_CODE -DDEBUG_TRACE_EXECUTION
 else
     outdir := release
     CFLAGS += -O3

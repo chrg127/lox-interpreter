@@ -9,8 +9,6 @@
 #include "object.h"
 #include "memory.h"
 
-#define DEBUG_TRACE_EXECUTION
-
 VM vm;
 
 static void print_stack()
@@ -43,7 +41,7 @@ static void concat()
     memcpy(data,          a->data, a->len);
     memcpy(data + a->len, b->data, b->len);
     data[len] = '\0';
-    ObjString *result = take_string(data, len);
+    ObjString *result = obj_take_string(data, len);
     vm_push(VALUE_MKOBJ(result));
 }
 
@@ -146,11 +144,13 @@ void vm_init()
 {
     reset_stack();
     vm.objects = NULL;
+    table_init(&vm.strings);
 }
 
 void vm_free()
 {
-    free_objects(vm.objects);
+    table_free(&vm.strings);
+    obj_free_arr(vm.objects);
 }
 
 VMResult vm_interpret(const char *src, const char *filename)
@@ -164,7 +164,11 @@ VMResult vm_interpret(const char *src, const char *filename)
     vm.chunk = &chunk;
     vm.ip = vm.chunk->code;
     vm.filename = filename;
+
+#ifdef DEBUG_TRACE_EXECUTION
     printf("=== running VM ===\n");
+#endif
+
     VMResult result = run();
     chunk_free(&chunk);
     return result;
