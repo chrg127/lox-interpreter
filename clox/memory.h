@@ -19,6 +19,4 @@ void *reallocate(void *ptr, size_t old, size_t new);
 
 #define FREE(type, ptr) reallocate(ptr, sizeof(type), 0)
 
-void free_objects();
-
 #endif

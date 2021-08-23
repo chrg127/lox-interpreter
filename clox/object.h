@@ -2,6 +2,7 @@
 #define OBJECT_H_INCLUDED
 
 #include <stddef.h>
+#include "uint.h"
 #include "value.h"
 
 typedef enum {
@@ -17,6 +18,7 @@ struct ObjString {
     Obj obj;
     size_t len;
     char *data;
+    u32 hash;
 };
 
 #define OBJ_TYPE(value)     (AS_OBJ(value)->type)
@@ -34,5 +36,6 @@ static inline bool obj_is_type(Value value, ObjType type)
 ObjString *obj_copy_string(const char *str, size_t len);
 ObjString *obj_take_string(char *data, size_t len);
 void obj_print(Value value);
+void obj_free_arr(Obj *objects);
 
 #endif

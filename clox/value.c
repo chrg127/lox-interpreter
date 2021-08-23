@@ -46,10 +46,10 @@ bool value_equal(Value a, Value b)
     case VAL_BOOL:  return AS_BOOL(a) == AS_BOOL(b);
     case VAL_NIL:   return true;
     case VAL_NUM:   return AS_NUM(a) == AS_NUM(b);
-    case VAL_OBJ:
-        ObjString *as = AS_STRING(a);
-        ObjString *bs = AS_STRING(b);
-        return as->len == bs->len && memcmp(as->data, bs->data, as->len) == 0;
+    case VAL_OBJ:   return AS_OBJ(a) == AS_OBJ(b);
+        // ObjString *as = AS_STRING(a);
+        // ObjString *bs = AS_STRING(b);
+        // return as->len == bs->len && memcmp(as->data, bs->data, as->len) == 0;
     default:        return false; // unreachable
     }
 }

@@ -143,11 +143,13 @@ void vm_init()
 {
     reset_stack();
     vm.objects = NULL;
+    table_init(&vm.strings);
 }
 
 void vm_free()
 {
-    free_objects(vm.objects);
+    table_free(&vm.strings);
+    obj_free_arr(vm.objects);
 }
 
 VMResult vm_interpret(const char *src, const char *filename)
