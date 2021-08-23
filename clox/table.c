@@ -37,7 +37,7 @@ static Entry *find_entry(Entry *entries, size_t cap, ObjString *key)
         // our empty entry representation is key = NULL and value = nil_obj
         if (ptr->key == NULL) {
             if (is_empty(ptr))
-                return tombstone != NULL ? tombstone : ptr;
+                return first_tombstone != NULL ? first_tombstone : ptr;
             else if (first_tombstone == NULL)
                 first_tombstone = ptr;
         } else if (objstr_cmp(ptr->key, key))
