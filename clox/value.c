@@ -53,3 +53,13 @@ bool value_equal(Value a, Value b)
     default:        return false; // unreachable
     }
 }
+
+u32 hash_num(double n)
+{
+    return n;
+}
+
+u32 hash_bool(bool b)
+{
+    return b;
+}

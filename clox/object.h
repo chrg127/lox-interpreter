@@ -41,5 +41,6 @@ ObjString *obj_take_string(char *data, size_t len);
 void obj_print(Value value);
 void obj_free_arr(Obj *objects);
 ObjString *obj_make_string_nonowning(char *str, size_t len);
+u32 obj_hash(Obj *obj);
 
 #endif

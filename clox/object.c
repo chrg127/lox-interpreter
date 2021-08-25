@@ -31,7 +31,7 @@ static ObjString *alloc_str(char *data, size_t len, u32 hash)
     // memcpy(str->data, data, len);
 
     str->hash = hash;
-    table_install(&vm.strings, str, VALUE_MKNIL());
+    table_install(&vm.strings, VALUE_MKOBJ(str), VALUE_MKNIL());
     return str;
 }
 
@@ -103,5 +103,13 @@ void obj_free_arr(Obj *objects)
         Obj *next = obj->next;
         free_obj(obj);
         obj = next;
+    }
+}
+
+u32 obj_hash(Obj *obj)
+{
+    switch (obj->type) {
+    case OBJ_STRING: return ((ObjString *)obj)->hash;
+    default: return 0;
     }
 }
