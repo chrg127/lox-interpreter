@@ -51,7 +51,7 @@ static Entry *find_entry(Entry *entries, size_t cap, ObjString *key)
                 first_tombstone = ptr;
         } else if (objstr_cmp(ptr->key, key))
             return ptr;
-        i = (i + 1) & cap;
+        i = (i + 1) % cap;
     }
 }
 
