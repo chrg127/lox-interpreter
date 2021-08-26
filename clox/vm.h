@@ -13,6 +13,7 @@ typedef struct {
     u8 *ip;
     Value stack[STACK_MAX];
     Value *sp;
+    Table globals;
     Table strings;
     Obj *objects;
     const char *filename;

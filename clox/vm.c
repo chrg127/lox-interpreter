@@ -14,12 +14,16 @@ VM vm;
 static void print_stack()
 {
     printf("stack: ");
-    for (Value *p = vm.stack; p < vm.sp; p++) {
-        printf("[");
-        value_print(*p);
-        printf("]");
+    if (vm.stack == vm.sp)
+        printf("(empty)\n");
+    else {
+        for (Value *p = vm.stack; p < vm.sp; p++) {
+            printf("[");
+            value_print(*p);
+            printf("]");
+        }
+        printf("\n");
     }
-    printf("\n");
 }
 
 static Value peek(int dist)
@@ -78,6 +82,7 @@ static VMResult run()
         double a = AS_NUM(vm_pop()); \
         vm_push(value_type(a op b));    \
     } while (0)
+#define READ_STRING() AS_STRING(READ_CONSTANT())
 
     for (;;) {
 #ifdef DEBUG_TRACE_EXECUTION
@@ -95,6 +100,33 @@ static VMResult run()
         case OP_NIL:    vm_push(VALUE_MKNIL());       break;
         case OP_TRUE:   vm_push(VALUE_MKBOOL(true));  break;
         case OP_FALSE:  vm_push(VALUE_MKBOOL(false));     break;
+        // case OP_PUSH:
+        case OP_POP:    vm_pop(); break;
+        case OP_DEFINE_GLOBAL: {
+            ObjString *name = READ_STRING();
+            table_install(&vm.globals, name, peek(0));
+            vm_pop();
+            break;
+        }
+        case OP_GET_GLOBAL: {
+            ObjString *name = READ_STRING();
+            Value value;
+            if (!table_lookup(&vm.globals, name, &value)) {
+                runtime_error("undefined variable '%s'", name->data);
+                return VM_RUNTIME_ERROR;
+            }
+            vm_push(value);
+            break;
+        }
+        case OP_SET_GLOBAL: {
+            ObjString *name = READ_STRING();
+            if (table_install(&vm.globals, name, peek(0))) {
+                table_delete(&vm.globals, name);
+                runtime_error("undefined variable '%s'", name->data);
+                return VM_RUNTIME_ERROR;
+            }
+            break;
+        }
         case OP_EQ: {
             Value b = vm_pop();
             Value a = vm_pop();
@@ -128,13 +160,16 @@ static VMResult run()
             vm.sp[-1] = VALUE_MKNUM(-AS_NUM(vm.sp[-1]));
             // vm_push(VALUE_MKNUM(-AS_NUM(vm_pop())));
             break;
-        case OP_RETURN:
+        case OP_PRINT:
             value_print(vm_pop());
             printf("\n");
+            break;
+        case OP_RETURN:
             return VM_OK;
         }
     }
 
+#undef READ_STRING
 #undef READ_BYTE
 #undef READ_CONSTANT
 #undef BINARY_OP
@@ -144,11 +179,13 @@ void vm_init()
 {
     reset_stack();
     vm.objects = NULL;
+    table_init(&vm.globals);
     table_init(&vm.strings);
 }
 
 void vm_free()
 {
+    table_free(&vm.globals);
     table_free(&vm.strings);
     obj_free_arr(vm.objects);
 }

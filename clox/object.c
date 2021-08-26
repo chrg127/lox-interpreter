@@ -31,7 +31,7 @@ static ObjString *alloc_str(char *data, size_t len, u32 hash)
     // memcpy(str->data, data, len);
 
     str->hash = hash;
-    table_install(&vm.strings, VALUE_MKOBJ(str), VALUE_MKNIL());
+    table_install(&vm.strings, str, VALUE_MKNIL());
     return str;
 }
 

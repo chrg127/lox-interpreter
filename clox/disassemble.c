@@ -57,6 +57,10 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_NIL:      return simple_instr("ldnil", offset);
     case OP_TRUE:     return simple_instr("ldtrue", offset);
     case OP_FALSE:    return simple_instr("ldfalse", offset);
+    case OP_POP:      return simple_instr("pop", offset);
+    case OP_DEFINE_GLOBAL: return const_instr("defglobal", chunk, offset);
+    case OP_GET_GLOBAL: return const_instr("getglobal", chunk, offset);
+    case OP_SET_GLOBAL: return const_instr("setglobal", chunk, offset);
     case OP_EQ:       return simple_instr("equal", offset);
     case OP_GREATER:  return simple_instr("greater", offset);
     case OP_LESS:     return simple_instr("less", offset);
@@ -65,6 +69,7 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_MUL:      return simple_instr("mul", offset);
     case OP_DIV:      return simple_instr("div", offset);
     case OP_NOT:      return simple_instr("not", offset);
+    case OP_PRINT:    return simple_instr("print", offset);
     case OP_RETURN:   return simple_instr("ret", offset);
     default:
         printf("[unknown] [%d]", instr);

@@ -74,7 +74,7 @@ static Entry *find_entry(Entry *entries, size_t cap, Value key)
                 first_tombstone = ptr;
         } else if (value_cmp(ptr->key, key))
             return ptr;
-        i = (i + 1) & cap;
+        i = (i + 1) % cap;
     }
 }
 
@@ -116,7 +116,7 @@ void table_free(Table *tab)
 }
 
 // bool table_install(Table *tab, ObjString *key, Value value)
-bool table_install(Table *tab, Value key, Value value)
+bool table_install_value(Table *tab, Value key, Value value)
 {
     // don't insert nil values
     if (value_is_null(key))
@@ -141,12 +141,12 @@ void table_add_all(Table *from, Table *to)
     for (size_t i = 0; i < from->cap; i++) {
         Entry *entry = &from->entries[i];
         if (value_is_null(entry->key))
-            table_install(to, entry->key, entry->value);
+            table_install_value(to, entry->key, entry->value);
     }
 }
 
 // bool table_lookup(Table *tab, ObjString *key, Value *value)
-bool table_lookup(Table *tab, Value key, Value *value)
+bool table_lookup_value(Table *tab, Value key, Value *value)
 {
     if (tab->size == 0)
         return false;
@@ -158,7 +158,7 @@ bool table_lookup(Table *tab, Value key, Value *value)
 }
 
 // bool table_delete(Table *tab, ObjString *key)
-bool table_delete(Table *tab, Value key)
+bool table_delete_value(Table *tab, Value key)
 {
     if (tab->size == 0)
         return false;
