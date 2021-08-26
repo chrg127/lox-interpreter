@@ -163,6 +163,16 @@ static void synchronize()
 
 static u8 ident_const(Token *name)
 {
+    // ValueArray *consts = &curr_chunk()->constants;
+    // for (size_t i = 0; i < consts->size; i++) {
+    //     if (!IS_STRING(consts->values[i]))
+    //         continue;
+    //     ObjString *str = AS_STRING(consts->values[i]);
+    //     if (str->len == name->len
+    //      && memcmp(str->data, name->start, name->len) == 0) {
+    //         return i;
+    //     }
+    // }
     return make_constant(VALUE_MKOBJ(obj_copy_string(name->start, name->len)));
 }
 

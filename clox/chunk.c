@@ -59,6 +59,10 @@ void chunk_free(Chunk *chunk)
 
 size_t chunk_add_const(Chunk *chunk, Value value)
 {
+    for (size_t i = 0; i < chunk->constants.size; i++) {
+        if (value_equal(chunk->constants.values[i], value))
+            return i;
+    }
     valuearray_write(&chunk->constants, value);
     return chunk->constants.size - 1;
 }

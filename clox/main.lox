@@ -1,0 +1,3 @@
+var a = "a" + "b";
+var b = a + "c";
+print b + "a";
