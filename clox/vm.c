@@ -127,6 +127,16 @@ static VMResult run()
             }
             break;
         }
+        case OP_GET_LOCAL: {
+            u8 slot = READ_BYTE();
+            vm_push(vm.stack[slot]);
+            break;
+        }
+        case OP_SET_LOCAL: {
+            u8 slot = READ_BYTE();
+            vm.stack[slot] = peek(0);
+            break;
+        }
         case OP_EQ: {
             Value b = vm_pop();
             Value a = vm_pop();
