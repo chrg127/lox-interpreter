@@ -6,21 +6,30 @@
 #include <string.h>
 #include "scanner.h"
 #include "object.h"
+#include "vector.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "disassemble.h"
 #endif
+
+typedef struct {
+    u8 *data;
+    size_t size;
+    size_t cap;
+} ConstGlobalArray;
 
 static struct {
     Token curr, prev;
     bool had_error;
     bool panic_mode;
     const char *file;
+    ConstGlobalArray global_consts;
 } parser;
 
 typedef struct {
     Token name;
     int depth;
+    bool is_const;
 } Local;
 
 typedef struct {
@@ -44,7 +53,8 @@ typedef enum {
     PREC_PRIMARY,
 } Precedence;
 
-typedef void (*ParseFn)(bool);
+// can_assign is used to avoid expressions such as 'a * b = c + d;'
+typedef void (*ParseFn)(bool can_assign);
 typedef struct {
     ParseFn prefix;
     ParseFn infix;
@@ -89,6 +99,7 @@ static void synchronize()
         case TOKEN_CLASS: case TOKEN_FUN: case TOKEN_VAR:
         case TOKEN_FOR: case TOKEN_IF: case TOKEN_WHILE:
         case TOKEN_PRINT: case TOKEN_RETURN:
+        case TOKEN_CONST:
             return;
         default:
             ;
@@ -137,6 +148,26 @@ static bool match(TokenType type)
         return false;
     advance();
     return true;
+}
+
+VECTOR_DEFINE(ConstGlobalArray, u8, globarr, data)
+
+size_t globarr_search(ConstGlobalArray *arr, u8 elem)
+{
+    for (size_t i = 0; i < arr->size; i++) {
+        if (arr->data[i] == elem)
+            return i;
+    }
+    return -1;
+}
+
+void globarr_delete(ConstGlobalArray *arr, u8 elem)
+{
+    size_t i = globarr_search(arr, elem);
+    if (i == -1)
+        return;
+    memmove(&arr->data[i], &arr->data[i+1], arr->size - i);
+    arr->size--;
 }
 
 
@@ -208,23 +239,32 @@ static bool ident_equal(Token *a, Token *b)
         return false;
     return memcmp(a->start, b->start, a->len) == 0;
 }
-static void add_local(Token name)
+
+static void add_local(Token name, bool is_const)
 {
     if (curr->local_count == UINT8_COUNT) {
         error("too many local variables in current block");
         return;
     }
-
     Local *local = &curr->locals[curr->local_count++];
     local->name = name;
-    local->depth = -1; //curr->scope_depth;
+    local->depth = -1;
+    local->is_const = is_const;
 }
 
-static void declare_var()
+static void declare_var(bool is_const)
 {
-    if (curr->scope_depth == 0)
-        return;
     Token *name = &parser.prev;
+    // global?
+    if (curr->scope_depth == 0) {
+        // first record that this global variable is const, then return
+        if (is_const)
+            globarr_write(&parser.global_consts, ident_const(name));
+        else
+            globarr_delete(&parser.global_consts, ident_const(name));
+        return;
+    }
+    // check for declaration inside current scope
     for (int i = curr->local_count - 1; i >= 0; i--) {
         Local *local = &curr->locals[i];
         if (local->depth != -1 && local->depth < curr->scope_depth)
@@ -232,13 +272,14 @@ static void declare_var()
         if (ident_equal(name, &local->name))
             error("redeclaration of variable in the same scope");
     }
-    add_local(*name);
+    add_local(*name, is_const);
 }
 
 static void mark_initialized()
 {
     curr->locals[curr->local_count-1].depth = curr->scope_depth;
 }
+
 static void define_var(u8 global)
 {
     if (curr->scope_depth > 0) {
@@ -248,18 +289,17 @@ static void define_var(u8 global)
     emit_two(OP_DEFINE_GLOBAL, global);
 }
 
-static u8 parse_var(const char *errmsg)
+static u8 parse_var(bool is_const, const char *errmsg)
 {
     consume(TOKEN_IDENT, errmsg);
-    declare_var();
-    if (curr->scope_depth > 0)
-        return 0;
-    return ident_const(&parser.prev);
+    declare_var(is_const);
+    //     local?
+    return curr->scope_depth > 0 ? 0 : ident_const(&parser.prev);
 }
 
-static void var_decl()
+static void var_decl(bool is_const)
 {
-    u8 global = parse_var("expected variable name");
+    u8 global = parse_var(is_const, "expected variable name");
     if (match(TOKEN_EQ))
         expr();
     else
@@ -271,7 +311,9 @@ static void var_decl()
 static void decl()
 {
     if (match(TOKEN_VAR))
-        var_decl();
+        var_decl(false);
+    else if (match(TOKEN_CONST))
+        var_decl(true);
     else
         stmt();
 
@@ -327,7 +369,6 @@ static void parse_precedence(Precedence prec)
         advance();
         ParseFn infix_rule = get_rule(parser.prev.type)->infix;
         infix_rule(can_assign);
-
         if (can_assign && match(TOKEN_EQ))
             error("invalid assignment target");
     }
@@ -422,19 +463,34 @@ static int resolve_local(Compiler *compiler, Token *name)
     return -1;
 }
 
+static bool is_const_var(int arg, bool local)
+{
+    if (local) {
+        Local *local = &curr->locals[arg];
+        return local->is_const;
+    } else
+        return globarr_search(&parser.global_consts, arg) != -1;
+}
+
 static void named_var(Token name, bool can_assign)
 {
     u8 getop, setop;
+    bool local = false;
     int arg = resolve_local(curr, &name);
     if (arg != -1) {
         getop = OP_GET_LOCAL;
         setop = OP_SET_LOCAL;
+        local = true;
     } else {
         arg = ident_const(&name);
         getop = OP_GET_GLOBAL;
         setop = OP_SET_GLOBAL;
     }
     if (can_assign && match(TOKEN_EQ)) {
+        if (is_const_var(arg, local)) {
+            error("can't assign to const variable");
+            return;
+        }
         expr();
         emit_two(setop, arg);
     } else
@@ -487,6 +543,7 @@ static ParseRule rules[] = {
     [TOKEN_TRUE]        = { literal,    NULL,   PREC_NONE },
     [TOKEN_VAR]         = { NULL,       NULL,   PREC_NONE },
     [TOKEN_WHILE]       = { NULL,       NULL,   PREC_NONE },
+    [TOKEN_CONST]       = { NULL,       NULL,   PREC_NONE },
     [TOKEN_ERROR]       = { NULL,       NULL,   PREC_NONE },
     [TOKEN_EOF]         = { NULL,       NULL,   PREC_NONE },
 };
@@ -513,7 +570,18 @@ static void compiler_init(Compiler *compiler)
 }
 
 
+
 /* public functions */
+
+void compile_init()
+{
+    globarr_init(&parser.global_consts);
+}
+
+void compile_free()
+{
+    globarr_free(&parser.global_consts);
+}
 
 bool compile(const char *src, Chunk *chunk, const char *filename)
 {

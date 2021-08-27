@@ -187,6 +187,7 @@ static VMResult run()
 
 void vm_init()
 {
+    compile_init();
     reset_stack();
     vm.objects = NULL;
     table_init(&vm.globals);
@@ -195,6 +196,7 @@ void vm_init()
 
 void vm_free()
 {
+    compile_free();
     table_free(&vm.globals);
     table_free(&vm.strings);
     obj_free_arr(vm.objects);

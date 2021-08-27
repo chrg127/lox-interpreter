@@ -33,7 +33,7 @@ static int const_long_instr(const char *name, Chunk *chunk, size_t offset)
 static size_t byte_instr(const char *name, Chunk *chunk, size_t offset)
 {
     u8 slot = chunk->code[offset+1];
-    printf("%s #%d\n", name, slot);
+    printf("%s #%d", name, slot);
     return offset + 2;
 }
 

@@ -21,6 +21,10 @@ typedef struct {
 void table_init(Table *tab);
 void table_free(Table *tab);
 
+// install returns whether it created (true) or modified (false) the key's value
+// lookup returns whether the lookup went well
+// delete returns whether the delete went well
+
 bool table_install_value(Table *tab, Value key, Value value);
 bool table_lookup_value(Table *tab, Value key, Value *value);
 bool table_delete_value(Table *tab, Value key);

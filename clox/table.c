@@ -32,10 +32,10 @@ static Value make_tombstone()
     return VALUE_MKBOOL(true);
 }
 
-static bool objstr_cmp(ObjString *a, ObjString *b)
-{
-    return a == b; // we have string interning
-}
+// static bool objstr_cmp(ObjString *a, ObjString *b)
+// {
+//     return a == b; // we have string interning
+// }
 
 static bool value_cmp(Value a, Value b)
 {
@@ -50,11 +50,11 @@ static bool value_cmp(Value a, Value b)
     }
 }
 
-static bool objstring_is_null(ObjString *str) { return str == NULL; }
+// static bool objstring_is_null(ObjString *str) { return str == NULL; }
 static bool value_is_null(Value v)            { return IS_NIL(v); }
 
 static u32 hash(Value v)               { return v.hash; }
-static u32 objstr_hash(ObjString *str) { return str->hash; }
+// static u32 objstr_hash(ObjString *str) { return str->hash; }
 
 // static Entry *find_entry(Entry *entries, size_t cap, ObjString *key)
 static Entry *find_entry(Entry *entries, size_t cap, Value key)
