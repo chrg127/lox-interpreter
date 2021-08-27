@@ -30,6 +30,13 @@ static int const_long_instr(const char *name, Chunk *chunk, size_t offset)
     return offset + 4;
 }
 
+static size_t byte_instr(const char *name, Chunk *chunk, size_t offset)
+{
+    u8 slot = chunk->code[offset+1];
+    printf("%s #%d\n", name, slot);
+    return offset + 2;
+}
+
 void disassemble(Chunk *chunk, const char *name)
 {
     printf("== %s ==\n", name);
@@ -51,26 +58,28 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
 
     u8 instr = chunk->code[offset];
     switch (instr) {
-    case OP_CONSTANT: return const_instr("load", chunk, offset);
-    case OP_CONSTANT_LONG: return const_long_instr("OP_CONSTANT_LONG", chunk, offset);
-    case OP_NEGATE:   return simple_instr("neg", offset);
-    case OP_NIL:      return simple_instr("ldnil", offset);
-    case OP_TRUE:     return simple_instr("ldtrue", offset);
-    case OP_FALSE:    return simple_instr("ldfalse", offset);
-    case OP_POP:      return simple_instr("pop", offset);
-    case OP_DEFINE_GLOBAL: return const_instr("defglobal", chunk, offset);
-    case OP_GET_GLOBAL: return const_instr("getglobal", chunk, offset);
-    case OP_SET_GLOBAL: return const_instr("setglobal", chunk, offset);
-    case OP_EQ:       return simple_instr("equal", offset);
-    case OP_GREATER:  return simple_instr("greater", offset);
-    case OP_LESS:     return simple_instr("less", offset);
-    case OP_ADD:      return simple_instr("add", offset);
-    case OP_SUB:      return simple_instr("sub", offset);
-    case OP_MUL:      return simple_instr("mul", offset);
-    case OP_DIV:      return simple_instr("div", offset);
-    case OP_NOT:      return simple_instr("not", offset);
-    case OP_PRINT:    return simple_instr("print", offset);
-    case OP_RETURN:   return simple_instr("ret", offset);
+    case OP_CONSTANT:       return const_instr("ldc", chunk, offset);
+    case OP_CONSTANT_LONG:  return const_long_instr("ldcl", chunk, offset);
+    case OP_NEGATE:         return simple_instr("neg", offset);
+    case OP_NIL:            return simple_instr("ldnil", offset);
+    case OP_TRUE:           return simple_instr("ldtrue", offset);
+    case OP_FALSE:          return simple_instr("ldfalse", offset);
+    case OP_POP:            return simple_instr("pop", offset);
+    case OP_DEFINE_GLOBAL:  return const_instr("defg", chunk, offset);
+    case OP_GET_GLOBAL:     return const_instr("ldg", chunk, offset);
+    case OP_SET_GLOBAL:     return const_instr("stg", chunk, offset);
+    case OP_GET_LOCAL:      return byte_instr("ldl", chunk, offset);
+    case OP_SET_LOCAL:      return byte_instr("stl", chunk, offset);
+    case OP_EQ:             return simple_instr("equal", offset);
+    case OP_GREATER:        return simple_instr("greater", offset);
+    case OP_LESS:           return simple_instr("less", offset);
+    case OP_ADD:            return simple_instr("add", offset);
+    case OP_SUB:            return simple_instr("sub", offset);
+    case OP_MUL:            return simple_instr("mul", offset);
+    case OP_DIV:            return simple_instr("div", offset);
+    case OP_NOT:            return simple_instr("not", offset);
+    case OP_PRINT:          return simple_instr("print", offset);
+    case OP_RETURN:         return simple_instr("ret", offset);
     default:
         printf("[unknown] [%d]", instr);
         return offset + 1;

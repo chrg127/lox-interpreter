@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <string.h>
 #include "scanner.h"
 #include "object.h"
 
@@ -16,6 +17,17 @@ static struct {
     bool panic_mode;
     const char *file;
 } parser;
+
+typedef struct {
+    Token name;
+    int depth;
+} Local;
+
+typedef struct {
+    Local locals[UINT8_COUNT];
+    int local_count;
+    int scope_depth;
+} Compiler;
 
 typedef enum {
     PREC_NONE,
@@ -40,15 +52,13 @@ typedef struct {
 } ParseRule;
 
 Chunk *compiling_chunk;
-
-static Chunk *curr_chunk()
-{
-    return compiling_chunk;
-}
+Compiler *curr = NULL;
 
 
 
 /* error handling */
+
+static void advance();
 
 static void error_at(Token *token, const char *msg)
 {
@@ -68,9 +78,33 @@ static void error_at(Token *token, const char *msg)
 static void error(const char *msg)      { error_at(&parser.prev, msg); }
 static void error_curr(const char *msg) { error_at(&parser.curr, msg); }
 
+// on error, synchronize by reaching a statement boundary
+static void synchronize()
+{
+    parser.panic_mode = false;
+    while (parser.curr.type != TOKEN_EOF) {
+        if (parser.prev.type == TOKEN_SEMICOLON)
+            return;
+        switch (parser.curr.type) {
+        case TOKEN_CLASS: case TOKEN_FUN: case TOKEN_VAR:
+        case TOKEN_FOR: case TOKEN_IF: case TOKEN_WHILE:
+        case TOKEN_PRINT: case TOKEN_RETURN:
+            return;
+        default:
+            ;
+        }
+        advance();
+    }
+}
+
 
 
 /* utilities */
+
+static Chunk *curr_chunk()
+{
+    return compiling_chunk;
+}
 
 static void advance()
 {
@@ -106,6 +140,10 @@ static bool match(TokenType type)
 }
 
 
+
+
+
+
 /* emitter */
 
 static void emit_byte(u8 byte)
@@ -134,6 +172,23 @@ static void emit_constant(Value value)
 }
 
 
+/* scope handling */
+
+static void begin_scope()
+{
+    curr->scope_depth++;
+}
+
+static void end_scope()
+{
+    curr->scope_depth--;
+    while (curr->local_count > 0 && curr->locals[curr->local_count - 1].depth > curr->scope_depth) {
+        emit_byte(OP_POP);
+        curr->local_count--;
+    }
+}
+
+
 
 /* parser */
 
@@ -142,55 +197,69 @@ static void stmt();
 static void decl();
 static void expr();
 
-// on error, synchronize by reaching a statement boundary
-static void synchronize()
-{
-    parser.panic_mode = false;
-    while (parser.curr.type != TOKEN_EOF) {
-        if (parser.prev.type == TOKEN_SEMICOLON)
-            return;
-        switch (parser.curr.type) {
-        case TOKEN_CLASS: case TOKEN_FUN: case TOKEN_VAR:
-        case TOKEN_FOR: case TOKEN_IF: case TOKEN_WHILE:
-        case TOKEN_PRINT: case TOKEN_RETURN:
-            return;
-        default:
-            ;
-        }
-        advance();
-    }
-}
-
 static u8 ident_const(Token *name)
 {
-    // ValueArray *consts = &curr_chunk()->constants;
-    // for (size_t i = 0; i < consts->size; i++) {
-    //     if (!IS_STRING(consts->values[i]))
-    //         continue;
-    //     ObjString *str = AS_STRING(consts->values[i]);
-    //     if (str->len == name->len
-    //      && memcmp(str->data, name->start, name->len) == 0) {
-    //         return i;
-    //     }
-    // }
     return make_constant(VALUE_MKOBJ(obj_copy_string(name->start, name->len)));
+}
+
+static bool ident_equal(Token *a, Token *b)
+{
+    if (a->len != b->len)
+        return false;
+    return memcmp(a->start, b->start, a->len) == 0;
+}
+static void add_local(Token name)
+{
+    if (curr->local_count == UINT8_COUNT) {
+        error("too many local variables in current block");
+        return;
+    }
+
+    Local *local = &curr->locals[curr->local_count++];
+    local->name = name;
+    local->depth = -1; //curr->scope_depth;
+}
+
+static void declare_var()
+{
+    if (curr->scope_depth == 0)
+        return;
+    Token *name = &parser.prev;
+    for (int i = curr->local_count - 1; i >= 0; i--) {
+        Local *local = &curr->locals[i];
+        if (local->depth != -1 && local->depth < curr->scope_depth)
+            break;
+        if (ident_equal(name, &local->name))
+            error("redeclaration of variable in the same scope");
+    }
+    add_local(*name);
+}
+
+static void mark_initialized()
+{
+    curr->locals[curr->local_count-1].depth = curr->scope_depth;
+}
+static void define_var(u8 global)
+{
+    if (curr->scope_depth > 0) {
+        mark_initialized();
+        return;
+    }
+    emit_two(OP_DEFINE_GLOBAL, global);
 }
 
 static u8 parse_var(const char *errmsg)
 {
     consume(TOKEN_IDENT, errmsg);
+    declare_var();
+    if (curr->scope_depth > 0)
+        return 0;
     return ident_const(&parser.prev);
-}
-
-static void define_var(u8 global)
-{
-    emit_two(OP_DEFINE_GLOBAL, global);
 }
 
 static void var_decl()
 {
     u8 global = parse_var("expected variable name");
-
     if (match(TOKEN_EQ))
         expr();
     else
@@ -224,12 +293,24 @@ static void expr_stmt()
     emit_byte(OP_POP);
 }
 
+static void block()
+{
+    while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF))
+        decl();
+    consume(TOKEN_RIGHT_BRACE, "expected '}' at end of block");
+}
+
 static void stmt()
 {
     if (match(TOKEN_PRINT))
         print_stmt();
-    else
+    else if (match(TOKEN_LEFT_BRACE)) {
+        begin_scope();
+        block();
+        end_scope();
+    } else {
         expr_stmt();
+    }
 }
 
 static void parse_precedence(Precedence prec)
@@ -328,14 +409,36 @@ static void grouping(bool can_assign)
     consume(TOKEN_RIGHT_PAREN, "expected ')' at end of grouping expression");
 }
 
+static int resolve_local(Compiler *compiler, Token *name)
+{
+    // backwards walk to find a variable with the same name as *name
+    for (int i = compiler->local_count - 1; i >= 0; i--) {
+        Local *local = &compiler->locals[i];
+        if (local->depth == -1)
+            error("can't read local variable in its own initializer");
+        if (ident_equal(name, &local->name))
+            return i;
+    }
+    return -1;
+}
+
 static void named_var(Token name, bool can_assign)
 {
-    u8 arg = ident_const(&name);
+    u8 getop, setop;
+    int arg = resolve_local(curr, &name);
+    if (arg != -1) {
+        getop = OP_GET_LOCAL;
+        setop = OP_SET_LOCAL;
+    } else {
+        arg = ident_const(&name);
+        getop = OP_GET_GLOBAL;
+        setop = OP_SET_GLOBAL;
+    }
     if (can_assign && match(TOKEN_EQ)) {
         expr();
-        emit_two(OP_SET_GLOBAL, arg);
+        emit_two(setop, arg);
     } else
-        emit_two(OP_GET_GLOBAL, arg);
+        emit_two(getop, arg);
 }
 
 static void variable(bool can_assign)
@@ -402,6 +505,12 @@ static void end_compiler()
 #endif
 }
 
+static void compiler_init(Compiler *compiler)
+{
+    compiler->local_count = 0;
+    compiler->scope_depth = 0;
+    curr = compiler;
+}
 
 
 /* public functions */
@@ -409,6 +518,8 @@ static void end_compiler()
 bool compile(const char *src, Chunk *chunk, const char *filename)
 {
     scanner_init(src);
+    Compiler compiler;
+    compiler_init(&compiler);
     compiling_chunk = chunk;
     parser.had_error  = false;
     parser.panic_mode = false;
