@@ -168,6 +168,25 @@ static void emit_constant(Value value)
     emit_two(OP_CONSTANT, make_constant(value));
 }
 
+static size_t emit_branch(u8 instr)
+{
+    emit_byte(instr);
+    emit_byte(0xFF);
+    emit_byte(0xFF);
+    return curr_chunk()->size - 2;
+}
+
+static void emit_loop(size_t loop_start)
+{
+    emit_byte(OP_BRANCH_BACK);
+    size_t offset = curr_chunk()->size - loop_start + 2;
+    if (offset > UINT16_MAX)
+        error("loop body too large");
+    emit_byte((offset >> 8) & 0xFF);
+    emit_byte( offset       & 0xFF);
+}
+
+
 
 /* scope handling */
 
@@ -271,7 +290,6 @@ static void decl()
         var_decl();
     else
         stmt();
-
     if (parser.panic_mode)
         synchronize();
 }
@@ -283,11 +301,92 @@ static void print_stmt()
     emit_byte(OP_PRINT);
 }
 
+static void patch_branch(size_t offset)
+{
+    size_t jump = curr_chunk()->size - offset - 2;
+    if (jump > UINT16_MAX)
+        error("too much code to jump over");
+    curr_chunk()->code[offset  ] = (jump >> 8) & 0xFF;
+    curr_chunk()->code[offset+1] =  jump       & 0xFF;
+}
+
+static void if_stmt()
+{
+    consume(TOKEN_LEFT_PAREN, "expected '(' after 'if'");
+    expr();
+    consume(TOKEN_RIGHT_PAREN, "expected ')' after condition");
+    size_t then_offset = emit_branch(OP_BRANCH_FALSE);
+    emit_byte(OP_POP);
+    stmt();
+    size_t else_offset = emit_branch(OP_BRANCH);
+    patch_branch(then_offset);
+    emit_byte(OP_POP);
+    if (match(TOKEN_ELSE))
+        stmt();
+    patch_branch(else_offset);
+}
+
+static void while_stmt()
+{
+    size_t loop_start = curr_chunk()->size;
+    consume(TOKEN_LEFT_PAREN, "expected '(' after 'while'");
+    expr();
+    consume(TOKEN_RIGHT_PAREN, "expected ')' after condition");
+    size_t exit_offset = emit_branch(OP_BRANCH_FALSE);
+    emit_byte(OP_POP);
+    stmt();
+    emit_loop(loop_start);
+    patch_branch(exit_offset);
+    emit_byte(OP_POP);
+}
+
 static void expr_stmt()
 {
     expr();
     consume(TOKEN_SEMICOLON, "expected ';' after value");
     emit_byte(OP_POP);
+}
+
+static void for_stmt()
+{
+    begin_scope();
+    consume(TOKEN_LEFT_PAREN, "expected '(' after 'for'");
+    if (match(TOKEN_SEMICOLON))
+        ;
+    else if (match(TOKEN_VAR))
+        var_decl();
+    else
+        expr_stmt();
+
+    size_t loop_start = curr_chunk()->size;
+    size_t exit_offset = 0;
+    if (!match(TOKEN_SEMICOLON)) {
+        expr();
+        consume(TOKEN_SEMICOLON, "expected ';' after loop condition");
+        exit_offset = emit_branch(OP_BRANCH_FALSE);
+        emit_byte(OP_POP);
+    }
+
+    if (!match(TOKEN_RIGHT_PAREN)) {
+        size_t body_offset = emit_branch(OP_BRANCH);
+        size_t increment_start = curr_chunk()->size;
+        expr();
+        emit_byte(OP_POP);
+        consume(TOKEN_RIGHT_PAREN, "expected ')' at end of 'for'");
+        emit_loop(loop_start);
+        loop_start = increment_start;
+        patch_branch(body_offset);
+    }
+
+    stmt();
+    emit_loop(loop_start);
+
+    if (exit_offset != 0) {
+        patch_branch(exit_offset);
+        emit_byte(OP_POP);
+    }
+
+    end_scope();
 }
 
 static void block()
@@ -299,8 +398,10 @@ static void block()
 
 static void stmt()
 {
-    if (match(TOKEN_PRINT))
-        print_stmt();
+         if (match(TOKEN_PRINT)) print_stmt();
+    else if (match(TOKEN_IF))    if_stmt();
+    else if (match(TOKEN_WHILE)) while_stmt();
+    else if (match(TOKEN_FOR))   for_stmt();
     else if (match(TOKEN_LEFT_BRACE)) {
         begin_scope();
         block();
@@ -333,6 +434,24 @@ static void parse_precedence(Precedence prec)
 static void expr()
 {
     parse_precedence(PREC_ASSIGN);
+}
+
+static void and_op(bool can_assign)
+{
+    size_t end_offset = emit_branch(OP_BRANCH_FALSE);
+    emit_byte(OP_POP);
+    parse_precedence(PREC_AND);
+    patch_branch(end_offset);
+}
+
+static void or_op(bool can_assign)
+{
+    size_t else_offset = emit_branch(OP_BRANCH_FALSE);
+    size_t end_offset  = emit_branch(OP_BRANCH);
+    patch_branch(else_offset);
+    emit_byte(OP_POP);
+    parse_precedence(PREC_OR);
+    patch_branch(end_offset);
 }
 
 static void binary(bool can_assign)
@@ -456,7 +575,7 @@ static ParseRule rules[] = {
     [TOKEN_IDENT]       = { variable,   NULL,   PREC_NONE },
     [TOKEN_STRING]      = { string,     NULL,   PREC_NONE },
     [TOKEN_NUMBER]      = { number,     NULL,   PREC_NONE },
-    [TOKEN_AND]         = { NULL,       NULL,   PREC_NONE },
+    [TOKEN_AND]         = { NULL,       and_op, PREC_AND  },
     [TOKEN_CLASS]       = { NULL,       NULL,   PREC_NONE },
     [TOKEN_ELSE]        = { NULL,       NULL,   PREC_NONE },
     [TOKEN_FALSE]       = { literal,    NULL,   PREC_NONE },
@@ -464,7 +583,7 @@ static ParseRule rules[] = {
     [TOKEN_FUN]         = { NULL,       NULL,   PREC_NONE },
     [TOKEN_IF]          = { NULL,       NULL,   PREC_NONE },
     [TOKEN_NIL]         = { literal,    NULL,   PREC_NONE },
-    [TOKEN_OR]          = { NULL,       NULL,   PREC_NONE },
+    [TOKEN_OR]          = { NULL,       or_op,  PREC_OR   },
     [TOKEN_PRINT]       = { NULL,       NULL,   PREC_NONE },
     [TOKEN_RETURN]      = { NULL,       NULL,   PREC_NONE },
     [TOKEN_SUPER]       = { NULL,       NULL,   PREC_NONE },
