@@ -4,12 +4,23 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <string.h>
+#include <time.h>
 #include "compiler.h"
 #include "disassemble.h"
 #include "object.h"
 #include "memory.h"
 
 VM vm;
+
+void push(Value value)
+{
+    *vm.sp++ = value;
+}
+
+Value pop()
+{
+    return *--vm.sp;
+}
 
 static void print_stack()
 {
@@ -26,7 +37,7 @@ static void print_stack()
     }
 }
 
-static Value peek(int dist)
+static Value peek(size_t dist)
 {
     return vm.sp[-1 - dist];
 }
@@ -38,26 +49,28 @@ static bool is_falsey(Value value)
 
 static void concat()
 {
-    ObjString *b = AS_STRING(vm_pop());
-    ObjString *a = AS_STRING(vm_pop());
+    ObjString *b = AS_STRING(pop());
+    ObjString *a = AS_STRING(pop());
     size_t len = a->len + b->len;
     char *data = ALLOCATE(char, len+1);
     memcpy(data,          a->data, a->len);
     memcpy(data + a->len, b->data, b->len);
     data[len] = '\0';
     ObjString *result = obj_take_string(data, len);
-    vm_push(VALUE_MKOBJ(result));
+    push(VALUE_MKOBJ(result));
 }
 
 static void reset_stack()
 {
     vm.sp = vm.stack;
+    vm.frame_size = 0;
 }
 
 static void runtime_error(const char *fmt, ...)
 {
-    size_t instr = vm.ip - vm.chunk->code - 1;
-    int line = vm.chunk->lines[instr];
+    CallFrame *frame = &vm.frames[vm.frame_size - 1];
+    size_t instr = frame->ip - frame->fun->chunk.code - 1;
+    int line = frame->fun->chunk.lines[instr];
     fprintf(stderr, "%s:%d: runtime error: ", vm.filename, line);
 
     va_list args;
@@ -65,14 +78,78 @@ static void runtime_error(const char *fmt, ...)
     vfprintf(stderr, fmt, args);
     va_end(args);
     fputs("\n", stderr);
+
+    for (int i = vm.frame_size - 1; i >= 0; i--) {
+        CallFrame *frame = &vm.frames[i];
+        ObjFunction *fun = frame->fun;
+        size_t instr = frame->ip - fun->chunk.code - 1;
+        fprintf(stderr, "[line %d] in ", fun->chunk.lines[instr]);
+        if (fun->name == NULL)
+            fprintf(stderr, "script\n");
+        else
+            fprintf(stderr, "%s()\n", fun->name->data);
+    }
+
     reset_stack();
+}
+
+static bool call(ObjFunction *fun, u8 argc)
+{
+    if (argc != fun->arity) {
+        runtime_error("expected %d arguments, got %d", fun->arity, argc);
+        return false;
+    }
+    if (vm.frame_size == FRAMES_MAX) {
+        runtime_error("stack overflow");
+        return false;
+    }
+    CallFrame *frame = &vm.frames[vm.frame_size++];
+    frame->fun   = fun;
+    frame->ip    = fun->chunk.code;
+    frame->slots = vm.sp - argc - 1;
+    return true;
+}
+
+static bool call_value(Value callee, u8 argc)
+{
+    if (IS_OBJ(callee)) {
+        switch (OBJ_TYPE(callee)) {
+        case OBJ_FUNCTION:
+            return call(AS_FUNCTION(callee), argc);
+        case OBJ_NATIVE:
+            NativeFn native = AS_NATIVE(callee);
+            Value result = native(argc, vm.sp - argc);
+            vm.sp -= argc + 1;
+            push(result);
+            return true;
+        default:
+            break;
+        }
+    }
+    runtime_error("attempt to call non-callable object");
+    return false;
+}
+
+static void define_native(const char *name, NativeFn fun)
+{
+    push(VALUE_MKOBJ(obj_copy_string(name, strlen(name))));
+    push(VALUE_MKOBJ(obj_make_native(fun)));
+    table_install(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
+    pop();
+    pop();
+}
+
+static Value clock_native(int argc, Value *argv)
+{
+    return VALUE_MKNUM((double)clock() / CLOCKS_PER_SEC);
 }
 
 static VMResult run()
 {
-#define READ_BYTE() (*vm.ip++)
-#define READ_SHORT() (vm.ip += 2, (u16)((vm.ip[-2] << 8) | vm.ip[-1]))
-#define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
+    CallFrame *frame = &vm.frames[vm.frame_size - 1];
+#define READ_BYTE() (*frame->ip++)
+#define READ_SHORT() (frame->ip += 2, (u16)((frame->ip[-2] << 8) | frame->ip[-1]))
+#define READ_CONSTANT() (frame->fun->chunk.constants.values[READ_BYTE()])
 #define READ_STRING() AS_STRING(READ_CONSTANT())
 #define BINARY_OP(value_type, op) \
     do {                    \
@@ -80,33 +157,33 @@ static VMResult run()
             runtime_error("operands must be numbers"); \
             return VM_RUNTIME_ERROR; \
         } \
-        double b = AS_NUM(vm_pop()); \
-        double a = AS_NUM(vm_pop()); \
-        vm_push(value_type(a op b));    \
+        double b = AS_NUM(pop()); \
+        double a = AS_NUM(pop()); \
+        push(value_type(a op b));    \
     } while (0)
 
     for (;;) {
 #ifdef DEBUG_TRACE_EXECUTION
         print_stack();
-        disassemble_opcode(vm.chunk, (size_t)(vm.ip - vm.chunk->code));
+        disassemble_opcode(&frame->fun->chunk, (size_t)(frame->ip - frame->fun->chunk.code));
         printf("\n");
 #endif
         u8 instr = READ_BYTE();
         switch (instr) {
         case OP_CONSTANT: {
             Value constant = READ_CONSTANT();
-            vm_push(constant);
+            push(constant);
             break;
         }
-        case OP_NIL:    vm_push(VALUE_MKNIL());       break;
-        case OP_TRUE:   vm_push(VALUE_MKBOOL(true));  break;
-        case OP_FALSE:  vm_push(VALUE_MKBOOL(false));     break;
+        case OP_NIL:    push(VALUE_MKNIL());       break;
+        case OP_TRUE:   push(VALUE_MKBOOL(true));  break;
+        case OP_FALSE:  push(VALUE_MKBOOL(false));     break;
         // case OP_PUSH:
-        case OP_POP:    vm_pop(); break;
+        case OP_POP:    pop(); break;
         case OP_DEFINE_GLOBAL: {
             ObjString *name = READ_STRING();
             table_install(&vm.globals, name, peek(0));
-            vm_pop();
+            pop();
             break;
         }
         case OP_GET_GLOBAL: {
@@ -116,7 +193,7 @@ static VMResult run()
                 runtime_error("undefined variable '%s'", name->data);
                 return VM_RUNTIME_ERROR;
             }
-            vm_push(value);
+            push(value);
             break;
         }
         case OP_SET_GLOBAL: {
@@ -130,28 +207,29 @@ static VMResult run()
         }
         case OP_GET_LOCAL: {
             u8 slot = READ_BYTE();
-            vm_push(vm.stack[slot]);
+            push(frame->slots[slot]);
             break;
         }
         case OP_SET_LOCAL: {
             u8 slot = READ_BYTE();
-            vm.stack[slot] = peek(0);
+            frame->slots[slot] = peek(0);
             break;
         }
         case OP_EQ: {
-            Value b = vm_pop();
-            Value a = vm_pop();
-            vm_push(VALUE_MKBOOL(value_equal(a, b)));
+            Value b = pop();
+            Value a = pop();
+            push(VALUE_MKBOOL(value_equal(a, b)));
             break;
         }
         case OP_GREATER: BINARY_OP(VALUE_MKBOOL, >); break;
+        case OP_LESS:    BINARY_OP(VALUE_MKBOOL, <); break;
         case OP_ADD:
             if (IS_STRING(peek(0)) && IS_STRING(peek(1)))
                 concat();
             else if (IS_NUM(peek(0)) && IS_NUM(peek(1))) {
-                double b = AS_NUM(vm_pop());
-                double a = AS_NUM(vm_pop());
-                vm_push(VALUE_MKNUM(a + b));
+                double b = AS_NUM(pop());
+                double a = AS_NUM(pop());
+                push(VALUE_MKNUM(a + b));
             } else {
                 runtime_error("operands must be two numbers or two strings");
                 return VM_RUNTIME_ERROR;
@@ -161,37 +239,57 @@ static VMResult run()
         case OP_MUL:    BINARY_OP(VALUE_MKNUM, *); break;
         case OP_DIV:    BINARY_OP(VALUE_MKNUM, /); break;
         case OP_NOT:
-            vm_push(VALUE_MKBOOL(is_falsey(vm_pop())));
+            push(VALUE_MKBOOL(is_falsey(pop())));
             break;
         case OP_NEGATE:
             if (!IS_NUM(peek(0))) {
                 runtime_error("operand must be a number");
                 return VM_RUNTIME_ERROR;
             }
-            vm_push(VALUE_MKNUM(-AS_NUM(vm_pop())));
+            push(VALUE_MKNUM(-AS_NUM(pop())));
             break;
         case OP_PRINT:
-            value_print(vm_pop());
+            value_print(pop());
             printf("\n");
             break;
         case OP_BRANCH: {
             u16 offset = READ_SHORT();
-            vm.ip += offset;
+            frame->ip += offset;
             break;
         }
         case OP_BRANCH_FALSE: {
             u16 offset = READ_SHORT();
             if (is_falsey(peek(0)))
-                vm.ip += offset;
+                frame->ip += offset;
             break;
         }
         case OP_BRANCH_BACK: {
             u16 offset = READ_SHORT();
-            vm.ip -= offset;
+            frame->ip -= offset;
             break;
         }
-        case OP_RETURN:
-            return VM_OK;
+        case OP_CALL: {
+            u8 argc = READ_BYTE();
+            if (!call_value(peek(argc), argc))
+                return VM_RUNTIME_ERROR;
+            frame = &vm.frames[vm.frame_size - 1];
+            break;
+        }
+        case OP_RETURN: {
+            Value result = pop();
+            vm.frame_size--;
+            if (vm.frame_size == 0) {
+                pop();
+                return VM_OK;
+            }
+            vm.sp = frame->slots;
+            push(result);
+            frame = &vm.frames[vm.frame_size-1];
+            break;
+        }
+        default:
+            runtime_error("unknown opcode: %d", instr);
+            return VM_RUNTIME_ERROR;
         }
     }
 
@@ -208,6 +306,7 @@ void vm_init()
     vm.objects = NULL;
     table_init(&vm.globals);
     table_init(&vm.strings);
+    define_native("clock", clock_native);
 }
 
 void vm_free()
@@ -219,32 +318,17 @@ void vm_free()
 
 VMResult vm_interpret(const char *src, const char *filename)
 {
-    Chunk chunk;
-    chunk_init(&chunk);
-    if (!compile(src, &chunk, filename)) {
-        chunk_free(&chunk);
+    ObjFunction *fun = compile(src, filename);
+    if (!fun)
         return VM_COMPILE_ERROR;
-    }
-    vm.chunk = &chunk;
-    vm.ip = vm.chunk->code;
+    push(VALUE_MKOBJ(fun));
+    call(fun, 0);
     vm.filename = filename;
 
 #ifdef DEBUG_TRACE_EXECUTION
     printf("=== running VM ===\n");
 #endif
 
-    VMResult result = run();
-    chunk_free(&chunk);
-    return result;
-}
-
-void vm_push(Value value)
-{
-    *vm.sp++ = value;
-}
-
-Value vm_pop()
-{
-    return *--vm.sp;
+    return run();
 }
 

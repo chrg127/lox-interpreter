@@ -19,7 +19,8 @@ static void repl()
             break;
         }
 
-        vm_interpret(line, "stdin");
+        if (strncmp(s, "\n", sizeof("\n")) != 0)
+            vm_interpret(line, "stdin");
     }
 }
 

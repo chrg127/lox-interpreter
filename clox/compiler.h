@@ -3,7 +3,8 @@
 
 #include <stdbool.h>
 #include "chunk.h"
+#include "object.h"
 
-bool compile(const char *src, Chunk *chunk, const char *filename);
+ObjFunction *compile(const char *src, const char *filename);
 
 #endif

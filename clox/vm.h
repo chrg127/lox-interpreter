@@ -6,11 +6,18 @@
 #include "table.h"
 #include "value.h"
 
+#define FRAMES_MAX 64
 #define STACK_MAX 256
 
 typedef struct {
-    Chunk *chunk;
+    ObjFunction *fun;
     u8 *ip;
+    Value *slots;
+} CallFrame;
+
+typedef struct {
+    CallFrame frames[FRAMES_MAX];
+    size_t frame_size;
     Value stack[STACK_MAX];
     Value *sp;
     Table globals;
@@ -30,7 +37,5 @@ typedef enum {
 void vm_init();
 void vm_free();
 VMResult vm_interpret(const char *src, const char *filename);
-void vm_push(Value value);
-Value vm_pop();
 
 #endif
