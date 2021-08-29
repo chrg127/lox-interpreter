@@ -133,7 +133,7 @@ static bool call_value(Value callee, u8 argc)
 static void define_native(const char *name, NativeFn fun)
 {
     push(VALUE_MKOBJ(obj_copy_string(name, strlen(name))));
-    push(VALUE_MKOBJ(obj_make_native(fun)));
+    push(VALUE_MKOBJ(obj_make_native(fun, name)));
     table_install(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
     pop();
     pop();
