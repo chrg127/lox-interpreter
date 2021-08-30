@@ -31,6 +31,7 @@ typedef enum {
     OP_BRANCH,
     OP_BRANCH_FALSE,
     OP_BRANCH_BACK,
+    OP_CALL,
     OP_RETURN,
 } Opcode;
 

@@ -12,31 +12,6 @@
 #include "disassemble.h"
 #endif
 
-typedef struct {
-    u8 *data;
-    size_t size;
-    size_t cap;
-} ConstGlobalArray;
-
-static struct {
-    Token curr, prev;
-    bool had_error;
-    bool panic_mode;
-    const char *file;
-} parser;
-
-typedef struct {
-    Token name;
-    int depth;
-    bool is_const;
-} Local;
-
-typedef struct {
-    Local *locals;
-    u32 local_count;
-    int scope_depth;
-} Compiler;
-
 typedef enum {
     PREC_NONE,
     PREC_ASSIGN,    // =
@@ -60,9 +35,42 @@ typedef struct {
     Precedence prec;
 } ParseRule;
 
-Chunk *compiling_chunk;
+typedef struct {
+    Token name;
+    int depth;
+    bool is_const;
+} Local;
+
+typedef enum {
+    TYPE_FUNCTION,
+    TYPE_SCRIPT,
+} FunctionType;
+
+typedef struct Compiler {
+    ObjFunction *fun;
+    FunctionType type;
+    Local *locals; //[UINT8_COUNT];
+    u32 local_count;
+    int scope_depth;
+    struct Compiler *enclosing;
+} Compiler;
+
+typedef struct {
+    u8 *data;
+    size_t size;
+    size_t cap;
+} ConstGlobalArray;
+
 Compiler *curr = NULL;
 ConstGlobalArray global_consts;
+
+struct {
+    Token curr, prev;
+    bool had_error;
+    bool panic_mode;
+    const char *file;
+} parser;
+
 
 
 
@@ -114,7 +122,7 @@ static void synchronize()
 
 static Chunk *curr_chunk()
 {
-    return compiling_chunk;
+    return &curr->fun->chunk;
 }
 
 static void advance()
@@ -183,7 +191,7 @@ static void emit_byte(u8 byte)
 }
 
 static void emit_two(u8 b1, u8 b2)  { emit_byte(b1); emit_byte(b2); }
-static void emit_return()           { emit_byte(OP_RETURN); }
+static void emit_return()           { emit_two(OP_NIL, OP_RETURN); }
 
 static u8 make_constant(Value value)
 {
@@ -222,7 +230,44 @@ static void emit_loop(size_t loop_start)
 
 
 
-/* scope handling */
+/* compiler */
+
+static void compiler_init(Compiler *compiler, FunctionType type)
+{
+    compiler->enclosing = curr;
+    compiler->fun = NULL;
+    compiler->type = type;
+    compiler->local_count = 0;
+    compiler->scope_depth = 0;
+    compiler->locals = ALLOCATE(Local, UINT24_COUNT);
+    // we assign NULL to function first due to garbage collection
+    compiler->fun = obj_make_fun();
+    curr = compiler;
+    if (type != TYPE_SCRIPT)
+        curr->fun->name = obj_copy_string(parser.prev.start, parser.prev.len);
+
+    Local *local = &curr->locals[curr->local_count++];
+    local->depth = 0;
+    local->name.start = "";
+    local->name.len = 0;
+}
+
+static ObjFunction *compiler_end()
+{
+    FREE_ARRAY(Local, curr->locals, UINT24_COUNT);
+    emit_return();
+    ObjFunction *fun = curr->fun;
+#ifdef DEBUG_PRINT_CODE
+    if (!parser.had_error)
+        disassemble(curr_chunk(), fun->name != NULL ? fun->name->data : "<script>");
+#endif
+    curr = curr->enclosing;
+    return fun;
+}
+
+
+
+/* scope and variable handling */
 
 static void begin_scope()
 {
@@ -232,22 +277,14 @@ static void begin_scope()
 static void end_scope()
 {
     curr->scope_depth--;
-    while (curr->local_count > 0 && curr->locals[curr->local_count - 1].depth > curr->scope_depth) {
+    while (curr->local_count > 0
+        && curr->locals[curr->local_count - 1].depth > curr->scope_depth) {
         emit_byte(OP_POP);
         curr->local_count--;
     }
 }
 
-
-
-/* parser */
-
-static ParseRule *get_rule(TokenType type);
-static void stmt();
-static void decl();
-static void expr();
-
-static u8 ident_const(Token *name)
+static u8 make_ident_constant(Token *name)
 {
     return make_constant(VALUE_MKOBJ(obj_copy_string(name->start, name->len)));
 }
@@ -278,9 +315,9 @@ static void declare_var(bool is_const)
     if (curr->scope_depth == 0) {
         // first record that this global variable is const, then return
         if (is_const)
-            globarr_write(&global_consts, ident_const(name));
+            globarr_write(&global_consts, make_ident_constant(name));
         else
-            globarr_delete(&global_consts, ident_const(name));
+            globarr_delete(&global_consts, make_ident_constant(name));
         return;
     }
     // check for declaration inside current scope
@@ -296,6 +333,8 @@ static void declare_var(bool is_const)
 
 static void mark_initialized()
 {
+    if (curr->scope_depth == 0)
+        return;
     curr->locals[curr->local_count-1].depth = curr->scope_depth;
 }
 
@@ -308,12 +347,56 @@ static void define_var(u8 global)
     emit_two(OP_DEFINE_GLOBAL, global);
 }
 
+// static int resolve_local(Compiler *compiler, Token *name)
+// {
+//     // backwards walk to find a variable with the same name as *name
+//     for (int i = compiler->local_count - 1; i >= 0; i--) {
+//         Local *local = &compiler->locals[i];
+//         if (local->depth == -1)
+//             error("can't read local variable in its own initializer");
+//         if (ident_equal(name, &local->name))
+//             return i;
+//     }
+//     return -1;
+// }
+
+static u32 resolve_local(Compiler *compiler, Token *name, bool *found)
+{
+    *found = true;
+    // backwards walk to find a variable with the same name as *name
+    for (int i = compiler->local_count - 1; i >= 0; i--) {
+        Local *local = &compiler->locals[i];
+        if (local->depth == -1)
+            error("can't read local variable in its own initializer");
+        if (ident_equal(name, &local->name))
+            return i;
+    }
+    *found = false;
+    return 0;
+}
+
+static bool is_const_var(int arg, bool local)
+{
+    if (local) {
+        Local *local = &curr->locals[arg];
+        return local->is_const;
+    } else
+        return globarr_search(&global_consts, arg) != NULL;
+}
+
+
+/* parser */
+
+static ParseRule *get_rule(TokenType type);
+static void stmt();
+static void expr();
+static void block();
+
 static u8 parse_var(bool is_const, const char *errmsg)
 {
     consume(TOKEN_IDENT, errmsg);
     declare_var(is_const);
-    //     local?
-    return curr->scope_depth > 0 ? 0 : ident_const(&parser.prev);
+    return curr->scope_depth > 0 ? 0 : make_ident_constant(&parser.prev);
 }
 
 static void var_decl(bool is_const)
@@ -327,14 +410,44 @@ static void var_decl(bool is_const)
     define_var(global);
 }
 
+static void function(FunctionType type)
+{
+    Compiler compiler;
+    compiler_init(&compiler, type);
+    begin_scope();
+
+    consume(TOKEN_LEFT_PAREN, "expected '(' after function name");
+    if (!check(TOKEN_RIGHT_PAREN)) {
+        do {
+            curr->fun->arity++;
+            if (curr->fun->arity > 255)
+                error_curr("can't have more than 255 parameters");
+            u8 constant = parse_var(false, "expected parameter name");
+            define_var(constant);
+        } while (match(TOKEN_COMMA));
+    }
+    consume(TOKEN_RIGHT_PAREN, "expected ')' after function parameters");
+    consume(TOKEN_LEFT_BRACE, "expected '{' before function body");
+    block();
+
+    ObjFunction *fun = compiler_end();
+    emit_two(OP_CONSTANT, make_constant(VALUE_MKOBJ(fun)));
+}
+
+static void fun_decl()
+{
+    u8 global = parse_var(false, "expected function name");
+    mark_initialized();
+    function(TYPE_FUNCTION);
+    define_var(global);
+}
+
 static void decl()
 {
-    if (match(TOKEN_VAR))
-        var_decl(false);
-    else if (match(TOKEN_CONST))
-        var_decl(true);
-    else
-        stmt();
+         if (match(TOKEN_VAR))   var_decl(false);
+    else if (match(TOKEN_CONST)) var_decl(true);
+    else if (match(TOKEN_FUN))   fun_decl();
+    else                         stmt();
     if (parser.panic_mode)
         synchronize();
 }
@@ -434,6 +547,19 @@ static void for_stmt()
     end_scope();
 }
 
+static void return_stmt()
+{
+    if (curr->type == TYPE_SCRIPT)
+        error("'return' statement at top level scope");
+    if (match(TOKEN_SEMICOLON))
+        emit_return();
+    else {
+        expr();
+        consume(TOKEN_SEMICOLON, "expected semicolon after return expression");
+        emit_byte(OP_RETURN);
+    }
+}
+
 static void block()
 {
     while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF))
@@ -443,10 +569,11 @@ static void block()
 
 static void stmt()
 {
-         if (match(TOKEN_PRINT)) print_stmt();
-    else if (match(TOKEN_IF))    if_stmt();
-    else if (match(TOKEN_WHILE)) while_stmt();
-    else if (match(TOKEN_FOR))   for_stmt();
+         if (match(TOKEN_PRINT))  print_stmt();
+    else if (match(TOKEN_IF))     if_stmt();
+    else if (match(TOKEN_WHILE))  while_stmt();
+    else if (match(TOKEN_FOR))    for_stmt();
+    else if (match(TOKEN_RETURN)) return_stmt();
     else if (match(TOKEN_LEFT_BRACE)) {
         begin_scope();
         block();
@@ -519,14 +646,28 @@ static void binary(bool can_assign)
     }
 }
 
-// static void condexpr()
-// {
-//     // emit OP_TEST
-//     // call to parse_precedence will emit left branch
-//     parse_precedence(PREC_CONDEXPR);
-//     consume(TOKEN_DCOLON, "expected ':' after left branch of '?'");
-//     parse_precedence(PREC_CONDEXPR);
-// }
+static u8 arglist()
+{
+    u8 argc = 0;
+    if (!check(TOKEN_RIGHT_PAREN)) {
+        do {
+            if (argc == 255)
+                error("function argument limit reached");
+            else {
+                expr();
+                argc++;
+            }
+        } while (match(TOKEN_COMMA));
+    }
+    consume(TOKEN_RIGHT_PAREN, "expected ')' after function arguments");
+    return argc;
+}
+
+static void call(bool can_assign)
+{
+    u8 argc = arglist();
+    emit_two(OP_CALL, argc);
+}
 
 static void unary(bool can_assign)
 {
@@ -569,30 +710,6 @@ static void grouping(bool can_assign)
     consume(TOKEN_RIGHT_PAREN, "expected ')' at end of grouping expression");
 }
 
-static u32 resolve_local(Compiler *compiler, Token *name, bool *found)
-{
-    *found = true;
-    // backwards walk to find a variable with the same name as *name
-    for (int i = compiler->local_count - 1; i >= 0; i--) {
-        Local *local = &compiler->locals[i];
-        if (local->depth == -1)
-            error("can't read local variable in its own initializer");
-        if (ident_equal(name, &local->name))
-            return i;
-    }
-    *found = false;
-    return 0;
-}
-
-static bool is_const_var(int arg, bool local)
-{
-    if (local) {
-        Local *local = &curr->locals[arg];
-        return local->is_const;
-    } else
-        return globarr_search(&global_consts, arg) != NULL;
-}
-
 static void named_var(Token name, bool can_assign)
 {
     u8 getop, setop;
@@ -604,7 +721,7 @@ static void named_var(Token name, bool can_assign)
         setop = OP_SET_LOCAL;
         local = true;
     } else {
-        arg = ident_const(&name);
+        arg = make_ident_constant(&name);
         getop = OP_GET_GLOBAL;
         setop = OP_SET_GLOBAL;
     }
@@ -638,7 +755,7 @@ static void variable(bool can_assign)
 }
 
 static ParseRule rules[] = {
-    [TOKEN_LEFT_PAREN]  = { grouping,   NULL,   PREC_NONE },
+    [TOKEN_LEFT_PAREN]  = { grouping,   call,   PREC_CALL },
     [TOKEN_RIGHT_PAREN] = { NULL,       NULL,   PREC_NONE },
     [TOKEN_LEFT_BRACE]  = { NULL,       NULL,   PREC_NONE },
     [TOKEN_RIGHT_BRACE] = { NULL,       NULL,   PREC_NONE },
@@ -688,24 +805,6 @@ static ParseRule *get_rule(TokenType type)
     return &rules[type];
 }
 
-static void end_compiler()
-{
-    FREE_ARRAY(Local, curr->locals, UINT24_COUNT);
-    emit_return();
-#ifdef DEBUG_PRINT_CODE
-    if (!parser.had_error)
-        disassemble(curr_chunk(), "code");
-#endif
-}
-
-static void compiler_init(Compiler *compiler)
-{
-    compiler->local_count = 0;
-    compiler->scope_depth = 0;
-    compiler->locals = ALLOCATE(Local, UINT24_COUNT);
-    curr = compiler;
-}
-
 
 
 /* public functions */
@@ -720,21 +819,19 @@ void compile_free()
     globarr_free(&global_consts);
 }
 
-bool compile(const char *src, Chunk *chunk, const char *filename)
+ObjFunction *compile(const char *src, const char *filename)
 {
     scanner_init(src);
     Compiler compiler;
-    compiler_init(&compiler);
-    compiling_chunk = chunk;
+    compiler_init(&compiler, TYPE_SCRIPT);
     parser.had_error  = false;
     parser.panic_mode = false;
     parser.file       = filename;
-    advance();
 
+    advance();
     while (!match(TOKEN_EOF))
         decl();
 
-    consume(TOKEN_EOF, "expected end of expression");
-    end_compiler();
-    return !parser.had_error;
+    ObjFunction *fun = compiler_end();
+    return parser.had_error ? NULL : fun;
 }

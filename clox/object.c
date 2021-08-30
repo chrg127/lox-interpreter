@@ -77,10 +77,37 @@ ObjString *obj_take_string(char *data, size_t len)
     return alloc_str(data, len, hash);
 }
 
+ObjFunction *obj_make_fun()
+{
+    ObjFunction *fun = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
+    fun->arity = 0;
+    fun->name = NULL;
+    chunk_init(&fun->chunk);
+    return fun;
+}
+
+ObjNative *obj_make_native(NativeFn fun)
+{
+    ObjNative *native = ALLOCATE_OBJ(ObjNative, OBJ_NATIVE);
+    native->fun = fun;
+    return native;
+}
+
+static void print_function(ObjFunction *fun)
+{
+    if (fun->name == NULL) {
+        printf("<script>");
+        return;
+    }
+    printf("<fn %s>", fun->name->data);
+}
+
 void obj_print(Value value)
 {
     switch (OBJ_TYPE(value)) {
     case OBJ_STRING: printf("\"%.*s\"", (int) AS_STRING(value)->len, AS_STRING(value)->data); break;
+    case OBJ_FUNCTION: print_function(AS_FUNCTION(value)); break;
+    case OBJ_NATIVE: printf("<native fn>"); break;
     }
 }
 
@@ -93,6 +120,15 @@ static void free_obj(Obj *obj)
         FREE(ObjString, obj);
         break;
     }
+    case OBJ_FUNCTION: {
+        ObjFunction *fun = (ObjFunction *)obj;
+        chunk_free(&fun->chunk);
+        FREE(ObjFunction, obj);
+        break;
+    }
+    case OBJ_NATIVE:
+        FREE(ObjNative, obj);
+        break;
     }
 }
 

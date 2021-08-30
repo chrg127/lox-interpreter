@@ -3,9 +3,10 @@
 
 #include <stdbool.h>
 #include "chunk.h"
+#include "object.h"
 
 void compile_init();
 void compile_free();
-bool compile(const char *src, Chunk *chunk, const char *filename);
+ObjFunction *compile(const char *src, const char *filename);
 
 #endif
