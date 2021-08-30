@@ -47,6 +47,14 @@ static size_t byte3_instr(const char *name, Chunk *chunk, size_t offset)
     return offset + 4;
 }
 
+static size_t jump_instr(const char *name, int sign, Chunk *chunk, size_t offset)
+{
+    u16 branch = (u16)(chunk->code[offset + 1] << 8);
+    branch |= chunk->code[offset + 2];
+    printf("%s %ld -> %ld", name, offset, offset + 3 + sign * branch);
+    return offset + 3;
+}
+
 void disassemble(Chunk *chunk, const char *name)
 {
     printf("== %s ==\n", name);
@@ -72,8 +80,8 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_CONSTANT_LONG:  return const_long_instr("ldcl", chunk, offset);
     case OP_NEGATE:         return simple_instr("neg", offset);
     case OP_NIL:            return simple_instr("ldnil", offset);
-    case OP_TRUE:           return simple_instr("ldtrue", offset);
-    case OP_FALSE:          return simple_instr("ldfalse", offset);
+    case OP_TRUE:           return simple_instr("ldt", offset);
+    case OP_FALSE:          return simple_instr("ldf", offset);
     case OP_POP:            return simple_instr("pop", offset);
     case OP_DEFINE_GLOBAL:  return const_instr("defg", chunk, offset);
     case OP_GET_GLOBAL:     return const_instr("ldg", chunk, offset);
@@ -89,6 +97,9 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_DIV:            return simple_instr("div", offset);
     case OP_NOT:            return simple_instr("not", offset);
     case OP_PRINT:          return simple_instr("print", offset);
+    case OP_BRANCH:         return jump_instr("bfw",  1, chunk, offset);
+    case OP_BRANCH_FALSE:   return jump_instr("bfl",  1, chunk, offset);
+    case OP_BRANCH_BACK:    return jump_instr("bbw", -1, chunk, offset);
     case OP_RETURN:         return simple_instr("ret", offset);
     default:
         printf("[unknown] [%d]", instr);

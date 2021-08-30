@@ -74,7 +74,9 @@ static void runtime_error(const char *fmt, ...)
 static VMResult run()
 {
 #define READ_BYTE() (*vm.ip++)
+#define READ_SHORT() (vm.ip += 2, (u16)((vm.ip[-2] << 8) | vm.ip[-1]))
 #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
+#define READ_STRING() AS_STRING(READ_CONSTANT())
 #define BINARY_OP(value_type, op) \
     do {                    \
         if (!IS_NUM(peek(0)) || !IS_NUM(peek(1))) { \
@@ -85,7 +87,6 @@ static VMResult run()
         double a = AS_NUM(vm_pop()); \
         vm_push(value_type(a op b));    \
     } while (0)
-#define READ_STRING() AS_STRING(READ_CONSTANT())
 
     for (;;) {
 #ifdef DEBUG_TRACE_EXECUTION
@@ -183,14 +184,31 @@ static VMResult run()
             value_print(vm_pop());
             printf("\n");
             break;
+        case OP_BRANCH: {
+            u16 offset = READ_SHORT();
+            vm.ip += offset;
+            break;
+        }
+        case OP_BRANCH_FALSE: {
+            u16 offset = READ_SHORT();
+            if (is_falsey(peek(0)))
+                vm.ip += offset;
+            break;
+        }
+        case OP_BRANCH_BACK: {
+            u16 offset = READ_SHORT();
+            vm.ip -= offset;
+            break;
+        }
         case OP_RETURN:
             return VM_OK;
         }
     }
 
-#undef READ_STRING
 #undef READ_BYTE
+#undef READ_SHORT
 #undef READ_CONSTANT
+#undef READ_STRING
 #undef BINARY_OP
 }
 
