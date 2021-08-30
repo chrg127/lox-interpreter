@@ -23,7 +23,6 @@ static struct {
     bool had_error;
     bool panic_mode;
     const char *file;
-    ConstGlobalArray global_consts;
 } parser;
 
 typedef struct {
@@ -63,6 +62,7 @@ typedef struct {
 
 Chunk *compiling_chunk;
 Compiler *curr = NULL;
+ConstGlobalArray global_consts;
 
 
 
@@ -259,9 +259,9 @@ static void declare_var(bool is_const)
     if (curr->scope_depth == 0) {
         // first record that this global variable is const, then return
         if (is_const)
-            globarr_write(&parser.global_consts, ident_const(name));
+            globarr_write(&global_consts, ident_const(name));
         else
-            globarr_delete(&parser.global_consts, ident_const(name));
+            globarr_delete(&global_consts, ident_const(name));
         return;
     }
     // check for declaration inside current scope
@@ -469,7 +469,7 @@ static bool is_const_var(int arg, bool local)
         Local *local = &curr->locals[arg];
         return local->is_const;
     } else
-        return globarr_search(&parser.global_consts, arg) != -1;
+        return globarr_search(&global_consts, arg) != -1;
 }
 
 static void named_var(Token name, bool can_assign)
@@ -575,12 +575,12 @@ static void compiler_init(Compiler *compiler)
 
 void compile_init()
 {
-    globarr_init(&parser.global_consts);
+    globarr_init(&global_consts);
 }
 
 void compile_free()
 {
-    globarr_free(&parser.global_consts);
+    globarr_free(&global_consts);
 }
 
 bool compile(const char *src, Chunk *chunk, const char *filename)
@@ -601,4 +601,3 @@ bool compile(const char *src, Chunk *chunk, const char *filename)
     end_compiler();
     return !parser.had_error;
 }
-
