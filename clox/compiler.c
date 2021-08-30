@@ -52,6 +52,8 @@ typedef struct Compiler {
     Local *locals; //[UINT8_COUNT];
     u32 local_count;
     int scope_depth;
+    bool inside_loop;
+    size_t loop_start;
     struct Compiler *enclosing;
 } Compiler;
 
@@ -70,7 +72,6 @@ struct {
     bool panic_mode;
     const char *file;
 } parser;
-
 
 
 
@@ -240,6 +241,8 @@ static void compiler_init(Compiler *compiler, FunctionType type)
     compiler->local_count = 0;
     compiler->scope_depth = 0;
     compiler->locals = ALLOCATE(Local, UINT24_COUNT);
+    compiler->inside_loop = false;
+    compiler->loop_start = 0;
     // we assign NULL to function first due to garbage collection
     compiler->fun = obj_make_fun();
     curr = compiler;
@@ -347,19 +350,6 @@ static void define_var(u8 global)
     emit_two(OP_DEFINE_GLOBAL, global);
 }
 
-// static int resolve_local(Compiler *compiler, Token *name)
-// {
-//     // backwards walk to find a variable with the same name as *name
-//     for (int i = compiler->local_count - 1; i >= 0; i--) {
-//         Local *local = &compiler->locals[i];
-//         if (local->depth == -1)
-//             error("can't read local variable in its own initializer");
-//         if (ident_equal(name, &local->name))
-//             return i;
-//     }
-//     return -1;
-// }
-
 static u32 resolve_local(Compiler *compiler, Token *name, bool *found)
 {
     *found = true;
@@ -380,9 +370,11 @@ static bool is_const_var(int arg, bool local)
     if (local) {
         Local *local = &curr->locals[arg];
         return local->is_const;
-    } else
-        return globarr_search(&global_consts, arg) != NULL;
+    }
+    return globarr_search(&global_consts, arg) != NULL;
 }
+
+
 
 
 /* parser */
@@ -492,7 +484,15 @@ static void while_stmt()
     consume(TOKEN_RIGHT_PAREN, "expected ')' after condition");
     size_t exit_offset = emit_branch(OP_BRANCH_FALSE);
     emit_byte(OP_POP);
+
+    bool old_inside_loop = curr->inside_loop;
+    size_t old_loop_start = curr->loop_start;
+    curr->inside_loop = true;
+    curr->loop_start = loop_start;
     stmt();
+    curr->inside_loop = old_inside_loop;
+    curr->loop_start = old_loop_start;
+
     emit_loop(loop_start);
     patch_branch(exit_offset);
     emit_byte(OP_POP);
@@ -509,12 +509,10 @@ static void for_stmt()
 {
     begin_scope();
     consume(TOKEN_LEFT_PAREN, "expected '(' after 'for'");
-    if (match(TOKEN_SEMICOLON))
-        ;
-    else if (match(TOKEN_VAR))
-        var_decl(false);
-    else
-        expr_stmt();
+         if (match(TOKEN_SEMICOLON)) ;
+    else if (match(TOKEN_VAR))       var_decl(false);
+    else if (match(TOKEN_CONST))     var_decl(true);
+    else                             expr_stmt();
 
     size_t loop_start = curr_chunk()->size;
     size_t exit_offset = 0;
@@ -536,8 +534,14 @@ static void for_stmt()
         patch_branch(body_offset);
     }
 
+    bool old_inside_loop = curr->inside_loop;
+    size_t old_loop_start = curr->loop_start;
+    curr->inside_loop = true;
+    curr->loop_start = loop_start;
     stmt();
     emit_loop(loop_start);
+    curr->inside_loop = old_inside_loop;
+    curr->loop_start = old_loop_start;
 
     if (exit_offset != 0) {
         patch_branch(exit_offset);
@@ -560,6 +564,14 @@ static void return_stmt()
     }
 }
 
+static void continue_stmt()
+{
+    if (!curr->inside_loop)
+        error("continue statement not inside a loop");
+    consume(TOKEN_SEMICOLON, "expected semicolon after 'continue'");
+    emit_loop(curr->loop_start);
+}
+
 static void block()
 {
     while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF))
@@ -574,6 +586,7 @@ static void stmt()
     else if (match(TOKEN_WHILE))  while_stmt();
     else if (match(TOKEN_FOR))    for_stmt();
     else if (match(TOKEN_RETURN)) return_stmt();
+    else if (match(TOKEN_CONTINUE)) continue_stmt();
     else if (match(TOKEN_LEFT_BRACE)) {
         begin_scope();
         block();

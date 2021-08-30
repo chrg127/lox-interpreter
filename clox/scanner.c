@@ -140,7 +140,14 @@ static TokenType ident_type()
     case 'c':
         if (scanner.curr - scanner.start > 1) {
             switch (scanner.start[1]) {
-            case 'o': return check_keyword(2, 3, "nst", TOKEN_CONST);
+            case 'o':
+                if (scanner.curr - scanner.start > 3 && scanner.start[2] == 'n') {
+                    switch (scanner.start[3]) {
+                    case 't': return check_keyword(4, 4, "inue", TOKEN_CONTINUE);
+                    case 's': return check_keyword(4, 1, "t", TOKEN_CONST);
+                    }
+                }
+                break;
             case 'l': return check_keyword(2, 3, "ass", TOKEN_CLASS);
             }
         }
