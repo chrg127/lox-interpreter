@@ -37,6 +37,16 @@ static size_t byte_instr(const char *name, Chunk *chunk, size_t offset)
     return offset + 2;
 }
 
+static size_t byte3_instr(const char *name, Chunk *chunk, size_t offset)
+{
+    u8 b1 = chunk->code[offset+1];
+    u8 b2 = chunk->code[offset+2];
+    u8 b3 = chunk->code[offset+3];
+    u32 slot = b3 << 16 | b2 << 8 | b1;
+    printf("%s %d %d %d (%d)", name, b1, b2, b3, slot);
+    return offset + 4;
+}
+
 void disassemble(Chunk *chunk, const char *name)
 {
     printf("== %s ==\n", name);
@@ -68,8 +78,8 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_DEFINE_GLOBAL:  return const_instr("defg", chunk, offset);
     case OP_GET_GLOBAL:     return const_instr("ldg", chunk, offset);
     case OP_SET_GLOBAL:     return const_instr("stg", chunk, offset);
-    case OP_GET_LOCAL:      return byte_instr("ldl", chunk, offset);
-    case OP_SET_LOCAL:      return byte_instr("stl", chunk, offset);
+    case OP_GET_LOCAL:      return byte3_instr("ldl", chunk, offset);
+    case OP_SET_LOCAL:      return byte3_instr("stl", chunk, offset);
     case OP_EQ:             return simple_instr("equal", offset);
     case OP_GREATER:        return simple_instr("greater", offset);
     case OP_LESS:           return simple_instr("less", offset);

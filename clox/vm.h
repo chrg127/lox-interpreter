@@ -6,12 +6,12 @@
 #include "table.h"
 #include "value.h"
 
-#define STACK_MAX 256
+#define STACK_MAX 16777216
 
 typedef struct {
     Chunk *chunk;
     u8 *ip;
-    Value stack[STACK_MAX];
+    Value *stack;
     Value *sp;
     Table globals;
     Table strings;

@@ -51,6 +51,9 @@ static void concat()
 
 static void reset_stack()
 {
+    if (vm.stack != NULL)
+        FREE_ARRAY(Value, vm.stack, STACK_MAX);
+    vm.stack = ALLOCATE(Value, STACK_MAX);
     vm.sp = vm.stack;
 }
 
@@ -128,12 +131,18 @@ static VMResult run()
             break;
         }
         case OP_GET_LOCAL: {
-            u8 slot = READ_BYTE();
+            u8 b1 = READ_BYTE();
+            u8 b2 = READ_BYTE();
+            u8 b3 = READ_BYTE();
+            u32 slot = b3 << 16 | b2 << 8 | b1;
             vm_push(vm.stack[slot]);
             break;
         }
         case OP_SET_LOCAL: {
-            u8 slot = READ_BYTE();
+            u8 b1 = READ_BYTE();
+            u8 b2 = READ_BYTE();
+            u8 b3 = READ_BYTE();
+            u32 slot = b3 << 16 | b2 << 8 | b1;
             vm.stack[slot] = peek(0);
             break;
         }

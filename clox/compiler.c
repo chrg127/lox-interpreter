@@ -32,8 +32,8 @@ typedef struct {
 } Local;
 
 typedef struct {
-    Local locals[UINT8_COUNT];
-    int local_count;
+    Local *locals;
+    u32 local_count;
     int scope_depth;
 } Compiler;
 
@@ -152,21 +152,21 @@ static bool match(TokenType type)
 
 VECTOR_DEFINE(ConstGlobalArray, u8, globarr, data)
 
-size_t globarr_search(ConstGlobalArray *arr, u8 elem)
+u8 *globarr_search(ConstGlobalArray *arr, u8 elem)
 {
     for (size_t i = 0; i < arr->size; i++) {
         if (arr->data[i] == elem)
-            return i;
+            return &arr->data[i];
     }
-    return -1;
+    return NULL;
 }
 
 void globarr_delete(ConstGlobalArray *arr, u8 elem)
 {
-    size_t i = globarr_search(arr, elem);
-    if (i == -1)
+    u8 *p = globarr_search(arr, elem);
+    if (!p)
         return;
-    memmove(&arr->data[i], &arr->data[i+1], arr->size - i);
+    memmove(p, p+1, arr->size - (p - arr->data));
     arr->size--;
 }
 
@@ -242,7 +242,7 @@ static bool ident_equal(Token *a, Token *b)
 
 static void add_local(Token name, bool is_const)
 {
-    if (curr->local_count == UINT8_COUNT) {
+    if (curr->local_count == UINT24_COUNT) {
         error("too many local variables in current block");
         return;
     }
@@ -450,8 +450,9 @@ static void grouping(bool can_assign)
     consume(TOKEN_RIGHT_PAREN, "expected ')' at end of grouping expression");
 }
 
-static int resolve_local(Compiler *compiler, Token *name)
+static u32 resolve_local(Compiler *compiler, Token *name, bool *found)
 {
+    *found = true;
     // backwards walk to find a variable with the same name as *name
     for (int i = compiler->local_count - 1; i >= 0; i--) {
         Local *local = &compiler->locals[i];
@@ -460,7 +461,8 @@ static int resolve_local(Compiler *compiler, Token *name)
         if (ident_equal(name, &local->name))
             return i;
     }
-    return -1;
+    *found = false;
+    return 0;
 }
 
 static bool is_const_var(int arg, bool local)
@@ -469,15 +471,16 @@ static bool is_const_var(int arg, bool local)
         Local *local = &curr->locals[arg];
         return local->is_const;
     } else
-        return globarr_search(&global_consts, arg) != -1;
+        return globarr_search(&global_consts, arg) != NULL;
 }
 
 static void named_var(Token name, bool can_assign)
 {
     u8 getop, setop;
     bool local = false;
-    int arg = resolve_local(curr, &name);
-    if (arg != -1) {
+    bool found;
+    int arg = resolve_local(curr, &name, &found);
+    if (found) {
         getop = OP_GET_LOCAL;
         setop = OP_SET_LOCAL;
         local = true;
@@ -492,9 +495,22 @@ static void named_var(Token name, bool can_assign)
             return;
         }
         expr();
-        emit_two(setop, arg);
-    } else
-        emit_two(getop, arg);
+        if (local) {
+            emit_byte(setop);
+            emit_byte(arg & 0xFF);
+            emit_byte((arg >> 8) & 0xFF);
+            emit_byte((arg >> 16) & 0xFF);
+        } else
+            emit_two(setop, arg);
+    } else {
+        if (local) {
+            emit_byte(getop);
+            emit_byte(arg & 0xFF);
+            emit_byte((arg >> 8) & 0xFF);
+            emit_byte((arg >> 16) & 0xFF);
+        } else
+            emit_two(getop, arg);
+    }
 }
 
 static void variable(bool can_assign)
@@ -555,6 +571,7 @@ static ParseRule *get_rule(TokenType type)
 
 static void end_compiler()
 {
+    FREE_ARRAY(Local, curr->locals, UINT24_COUNT);
     emit_return();
 #ifdef DEBUG_PRINT_CODE
     if (!parser.had_error)
@@ -566,6 +583,7 @@ static void compiler_init(Compiler *compiler)
 {
     compiler->local_count = 0;
     compiler->scope_depth = 0;
+    compiler->locals = ALLOCATE(Local, UINT24_COUNT);
     curr = compiler;
 }
 
