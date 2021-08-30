@@ -82,6 +82,7 @@ static void runtime_error(const char *fmt, ...)
     va_end(args);
     fputs("\n", stderr);
 
+    fprintf(stderr, "traceback:\n");
     for (int i = vm.frame_size - 1; i >= 0; i--) {
         CallFrame *frame = &vm.frames[i];
         ObjFunction *fun = frame->fun;
@@ -119,12 +120,13 @@ static bool call_value(Value callee, u8 argc)
         switch (OBJ_TYPE(callee)) {
         case OBJ_FUNCTION:
             return call(AS_FUNCTION(callee), argc);
-        case OBJ_NATIVE:
+        case OBJ_NATIVE: {
             NativeFn native = AS_NATIVE(callee);
             Value result = native(argc, vm.sp - argc);
             vm.sp -= argc + 1;
             push(result);
             return true;
+        }
         default:
             break;
         }
@@ -136,7 +138,7 @@ static bool call_value(Value callee, u8 argc)
 static void define_native(const char *name, NativeFn fun)
 {
     push(VALUE_MKOBJ(obj_copy_string(name, strlen(name))));
-    push(VALUE_MKOBJ(obj_make_native(fun)));
+    push(VALUE_MKOBJ(obj_make_native(fun, name)));
     table_install(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
     pop();
     pop();
