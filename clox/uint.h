@@ -13,6 +13,7 @@ typedef int32_t  i32;
 typedef int64_t  i64;
 
 #define UINT8_COUNT (UINT8_MAX + 1)
+#define UINT16_COUNT (UINT16_MAX + 1)
 #define UINT24_COUNT (16777216)
 
 #endif

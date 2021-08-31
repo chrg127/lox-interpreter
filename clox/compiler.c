@@ -6,10 +6,16 @@
 #include "scanner.h"
 #include "object.h"
 #include "vector.h"
+#include "table.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "disassemble.h"
 #endif
+
+#define LOCAL_COUNT  UINT8_COUNT
+#define GLOBAL_COUNT UINT8_COUNT
+#define CONSTANT_MAX UINT8_MAX
+#define JUMP_MAX     UINT16_MAX
 
 typedef enum {
     PREC_NONE,
@@ -45,7 +51,7 @@ typedef enum {
     TYPE_SCRIPT,
 } FunctionType;
 
-struct {
+typedef struct {
     Token curr, prev;
     bool had_error;
     bool panic_mode;
@@ -55,7 +61,7 @@ struct {
 typedef struct Compiler {
     ObjFunction *fun;
     FunctionType type;
-    Local *locals; //[UINT8_COUNT];
+    Local *locals;//[LOCAL_COUNT];
     u32 local_count;
     int scope_depth;
     bool inside_loop;
@@ -63,14 +69,9 @@ typedef struct Compiler {
     struct Compiler *enclosing;
 } Compiler;
 
-typedef struct {
-    u8 data[UINT8_COUNT];
-    size_t size;
-} GlobalConstArray;
-
 Parser parser;
 Compiler *curr = NULL;
-GlobalConstArray global_consts;
+Table global_consts;
 
 
 
@@ -158,8 +159,7 @@ static bool match(TokenType type)
     return true;
 }
 
-VECTOR_DEFINE_SEARCH(GlobalConstArray, u8, globarr, data)
-VECTOR_DEFINE_DELETE(GlobalConstArray, u8, globarr, data)
+ObjString *token_to_string(Token *name) { return obj_copy_string(name->start, name->len); }
 
 
 
@@ -176,7 +176,7 @@ static void emit_return()           { emit_two(OP_NIL, OP_RETURN); }
 static u8 make_constant(Value value)
 {
     int constant = chunk_add_const(curr_chunk(), value);
-    if (constant > UINT8_MAX) {
+    if (constant > CONSTANT_MAX) {
         error("too many constants in one chunk");
         return 0;
     }
@@ -200,7 +200,7 @@ static void emit_loop(size_t loop_start)
 {
     emit_byte(OP_BRANCH_BACK);
     size_t offset = curr_chunk()->size - loop_start + 2;
-    if (offset > UINT16_MAX)
+    if (offset > JUMP_MAX)
         error("loop body too large");
     emit_byte((offset >> 8) & 0xFF);
     emit_byte( offset       & 0xFF);
@@ -295,9 +295,9 @@ static void declare_var(bool is_const)
     if (curr->scope_depth == 0) {
         // first record that this global variable is const, then return
         if (is_const)
-            global_consts.data[global_consts.size++] = make_ident_constant(name);
+            table_install(&global_consts, token_to_string(name), VALUE_MKNIL());
         else
-            globarr_delete(&global_consts, make_ident_constant(name));
+            table_delete(&global_consts, token_to_string(name));
         return;
     }
     // check for declaration inside current scope
@@ -342,13 +342,14 @@ static u32 resolve_local(Compiler *compiler, Token *name, bool *found)
     return 0;
 }
 
-static bool is_const_var(int arg, bool local)
+static bool is_const_var(int arg, Token *name, bool local)
 {
     if (local) {
         Local *local = &curr->locals[arg];
         return local->is_const;
     }
-    return globarr_search(&global_consts, arg) != NULL;
+    Value v;
+    return table_lookup(&global_consts, token_to_string(name), &v);
 }
 
 
@@ -366,6 +367,7 @@ static u8 parse_var(bool is_const, const char *errmsg)
 {
     consume(TOKEN_IDENT, errmsg);
     declare_var(is_const);
+    //     local?
     return curr->scope_depth > 0 ? 0 : make_ident_constant(&parser.prev);
 }
 
@@ -432,7 +434,7 @@ static void print_stmt()
 static void patch_branch(size_t offset)
 {
     size_t jump = curr_chunk()->size - offset - 2;
-    if (jump > UINT16_MAX)
+    if (jump > JUMP_MAX)
         error("too much code to jump over");
     curr_chunk()->code[offset  ] = (jump >> 8) & 0xFF;
     curr_chunk()->code[offset+1] =  jump       & 0xFF;
@@ -720,7 +722,7 @@ static void named_var(Token name, bool can_assign)
         setop = OP_SET_GLOBAL;
     }
     if (can_assign && match(TOKEN_EQ)) {
-        if (is_const_var(arg, local)) {
+        if (is_const_var(arg, &name, local)) {
             error("can't assign to const variable");
             return;
         }
