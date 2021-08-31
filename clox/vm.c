@@ -72,8 +72,8 @@ static void reset_stack()
 static void runtime_error(const char *fmt, ...)
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
-    size_t instr = frame->ip - frame->fun->chunk.code - 1;
-    int line = chunk_get_line(&frame->fun->chunk, instr);
+    size_t offset = frame->ip - frame->fun->chunk.code - 1;
+    int line = chunk_get_line(&frame->fun->chunk, offset);
     fprintf(stderr, "%s:%d: runtime error: ", vm.filename, line);
 
     va_list args;
@@ -86,8 +86,8 @@ static void runtime_error(const char *fmt, ...)
     for (int i = vm.frame_size - 1; i >= 0; i--) {
         CallFrame *frame = &vm.frames[i];
         ObjFunction *fun = frame->fun;
-        size_t instr = frame->ip - fun->chunk.code - 1;
-        fprintf(stderr, "[line %ld] in ", chunk_get_line(&fun->chunk, instr));
+        size_t offset = frame->ip - fun->chunk.code - 1;
+        fprintf(stderr, "[line %ld] in ", chunk_get_line(&fun->chunk, offset));
         if (fun->name == NULL)
             fprintf(stderr, "script\n");
         else
@@ -314,7 +314,6 @@ static VMResult run()
 
 void vm_init()
 {
-    compile_init();
     reset_stack();
     vm.objects = NULL;
     table_init(&vm.globals);
@@ -324,7 +323,6 @@ void vm_init()
 
 void vm_free()
 {
-    compile_free();
     table_free(&vm.globals);
     table_free(&vm.strings);
     obj_free_arr(vm.objects);

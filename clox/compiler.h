@@ -5,8 +5,6 @@
 #include "chunk.h"
 #include "object.h"
 
-void compile_init();
-void compile_free();
 ObjFunction *compile(const char *src, const char *filename);
 
 #endif

@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <string.h>
 #include "scanner.h"
 #include "object.h"
 #include "vector.h"
@@ -46,6 +45,13 @@ typedef enum {
     TYPE_SCRIPT,
 } FunctionType;
 
+struct {
+    Token curr, prev;
+    bool had_error;
+    bool panic_mode;
+    const char *file;
+} Parser;
+
 typedef struct Compiler {
     ObjFunction *fun;
     FunctionType type;
@@ -58,20 +64,13 @@ typedef struct Compiler {
 } Compiler;
 
 typedef struct {
-    u8 *data;
+    u8 data[UINT8_COUNT];
     size_t size;
-    size_t cap;
-} ConstGlobalArray;
+} GlobalConstArray;
 
+Parser parser;
 Compiler *curr = NULL;
-ConstGlobalArray global_consts;
-
-struct {
-    Token curr, prev;
-    bool had_error;
-    bool panic_mode;
-    const char *file;
-} parser;
+GlobalConstArray global_consts;
 
 
 
@@ -159,28 +158,8 @@ static bool match(TokenType type)
     return true;
 }
 
-VECTOR_DEFINE(ConstGlobalArray, u8, globarr, data)
-
-u8 *globarr_search(ConstGlobalArray *arr, u8 elem)
-{
-    for (size_t i = 0; i < arr->size; i++) {
-        if (arr->data[i] == elem)
-            return &arr->data[i];
-    }
-    return NULL;
-}
-
-void globarr_delete(ConstGlobalArray *arr, u8 elem)
-{
-    u8 *p = globarr_search(arr, elem);
-    if (!p)
-        return;
-    memmove(p, p+1, arr->size - (p - arr->data));
-    arr->size--;
-}
-
-
-
+VECTOR_DEFINE_SEARCH(GlobalConstArray, u8, globarr, data)
+VECTOR_DEFINE_DELETE(GlobalConstArray, u8, globarr, data)
 
 
 
@@ -206,8 +185,6 @@ static u8 make_constant(Value value)
 
 static void emit_constant(Value value)
 {
-    // could also be:
-    // chunk_write_const(curr_chunk(), value, parser.prev.line);
     emit_two(OP_CONSTANT, make_constant(value));
 }
 
@@ -318,7 +295,7 @@ static void declare_var(bool is_const)
     if (curr->scope_depth == 0) {
         // first record that this global variable is const, then return
         if (is_const)
-            globarr_write(&global_consts, make_ident_constant(name));
+            global_consts.data[global_consts.size++] = make_ident_constant(name);
         else
             globarr_delete(&global_consts, make_ident_constant(name));
         return;
@@ -383,6 +360,7 @@ static ParseRule *get_rule(TokenType type);
 static void stmt();
 static void expr();
 static void block();
+static void expr_stmt();
 
 static u8 parse_var(bool is_const, const char *errmsg)
 {
@@ -476,6 +454,16 @@ static void if_stmt()
     patch_branch(else_offset);
 }
 
+#define BEGIN_LOOP() \
+    bool old_inside_loop = curr->inside_loop; \
+    size_t old_loop_start = curr->loop_start; \
+    curr->inside_loop = true;                 \
+    curr->loop_start = loop_start;            \
+
+#define END_LOOP() \
+    curr->inside_loop = old_inside_loop; \
+    curr->loop_start = old_loop_start;   \
+
 static void while_stmt()
 {
     size_t loop_start = curr_chunk()->size;
@@ -485,23 +473,12 @@ static void while_stmt()
     size_t exit_offset = emit_branch(OP_BRANCH_FALSE);
     emit_byte(OP_POP);
 
-    bool old_inside_loop = curr->inside_loop;
-    size_t old_loop_start = curr->loop_start;
-    curr->inside_loop = true;
-    curr->loop_start = loop_start;
+    BEGIN_LOOP()
     stmt();
-    curr->inside_loop = old_inside_loop;
-    curr->loop_start = old_loop_start;
+    END_LOOP()
 
     emit_loop(loop_start);
     patch_branch(exit_offset);
-    emit_byte(OP_POP);
-}
-
-static void expr_stmt()
-{
-    expr();
-    consume(TOKEN_SEMICOLON, "expected ';' after value");
     emit_byte(OP_POP);
 }
 
@@ -534,14 +511,10 @@ static void for_stmt()
         patch_branch(body_offset);
     }
 
-    bool old_inside_loop = curr->inside_loop;
-    size_t old_loop_start = curr->loop_start;
-    curr->inside_loop = true;
-    curr->loop_start = loop_start;
+    BEGIN_LOOP()
     stmt();
     emit_loop(loop_start);
-    curr->inside_loop = old_inside_loop;
-    curr->loop_start = old_loop_start;
+    END_LOOP()
 
     if (exit_offset != 0) {
         patch_branch(exit_offset);
@@ -550,6 +523,9 @@ static void for_stmt()
 
     end_scope();
 }
+
+#undef BEGIN_LOOP
+#undef END_LOOP
 
 static void return_stmt()
 {
@@ -577,6 +553,13 @@ static void block()
     while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF))
         decl();
     consume(TOKEN_RIGHT_BRACE, "expected '}' at end of block");
+}
+
+static void expr_stmt()
+{
+    expr();
+    consume(TOKEN_SEMICOLON, "expected ';' after value");
+    emit_byte(OP_POP);
 }
 
 static void stmt()
@@ -712,9 +695,7 @@ static void number(bool can_assign)
 
 static void string(bool can_assign)
 {
-    // emit_constant(VALUE_MKOBJ(make_string_nonowning((char *)parser.prev.start + 1, parser.prev.len - 2)));
-    emit_constant(VALUE_MKOBJ(obj_copy_string(parser.prev.start + 1,
-                                              parser.prev.len   - 2)));
+    emit_constant(VALUE_MKOBJ(obj_copy_string(parser.prev.start + 1, parser.prev.len   - 2)));
 }
 
 static void grouping(bool can_assign)
@@ -821,16 +802,6 @@ static ParseRule *get_rule(TokenType type)
 
 
 /* public functions */
-
-void compile_init()
-{
-    globarr_init(&global_consts);
-}
-
-void compile_free()
-{
-    globarr_free(&global_consts);
-}
 
 ObjFunction *compile(const char *src, const char *filename)
 {
