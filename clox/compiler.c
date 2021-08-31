@@ -5,14 +5,13 @@
 #include <stddef.h>
 #include "scanner.h"
 #include "object.h"
-#include "vector.h"
 #include "table.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "disassemble.h"
 #endif
 
-#define LOCAL_COUNT  UINT8_COUNT
+#define LOCAL_COUNT  UINT16_COUNT
 #define GLOBAL_COUNT UINT8_COUNT
 #define CONSTANT_MAX UINT8_MAX
 #define JUMP_MAX     UINT16_MAX
@@ -61,7 +60,7 @@ typedef struct {
 typedef struct Compiler {
     ObjFunction *fun;
     FunctionType type;
-    Local *locals;//[LOCAL_COUNT];
+    Local locals[LOCAL_COUNT];
     u32 local_count;
     int scope_depth;
     bool inside_loop;
@@ -217,7 +216,7 @@ static void compiler_init(Compiler *compiler, FunctionType type)
     compiler->type = type;
     compiler->local_count = 0;
     compiler->scope_depth = 0;
-    compiler->locals = ALLOCATE(Local, UINT24_COUNT);
+    // compiler->locals = ALLOCATE(Local, UINT24_COUNT);
     compiler->inside_loop = false;
     compiler->loop_start = 0;
     // we assign NULL to function first due to garbage collection
@@ -234,7 +233,7 @@ static void compiler_init(Compiler *compiler, FunctionType type)
 
 static ObjFunction *compiler_end()
 {
-    FREE_ARRAY(Local, curr->locals, UINT24_COUNT);
+    // FREE_ARRAY(Local, curr->locals, UINT24_COUNT);
     emit_return();
     ObjFunction *fun = curr->fun;
 #ifdef DEBUG_PRINT_CODE
@@ -266,7 +265,7 @@ static void end_scope()
 
 static u8 make_ident_constant(Token *name)
 {
-    return make_constant(VALUE_MKOBJ(obj_copy_string(name->start, name->len)));
+    return make_constant(VALUE_MKOBJ(token_to_string(name)));
 }
 
 static bool ident_equal(Token *a, Token *b)
@@ -327,31 +326,18 @@ static void define_var(u8 global)
     emit_two(OP_DEFINE_GLOBAL, global);
 }
 
-static u32 resolve_local(Compiler *compiler, Token *name, bool *found)
+static Local *resolve_local(Compiler *compiler, Token *name)
 {
-    *found = true;
     // backwards walk to find a variable with the same name as *name
     for (int i = compiler->local_count - 1; i >= 0; i--) {
         Local *local = &compiler->locals[i];
         if (local->depth == -1)
             error("can't read local variable in its own initializer");
         if (ident_equal(name, &local->name))
-            return i;
+            return local;
     }
-    *found = false;
-    return 0;
+    return NULL;
 }
-
-static bool is_const_var(int arg, Token *name, bool local)
-{
-    if (local) {
-        Local *local = &curr->locals[arg];
-        return local->is_const;
-    }
-    Value v;
-    return table_lookup(&global_consts, token_to_string(name), &v);
-}
-
 
 
 
@@ -515,8 +501,8 @@ static void for_stmt()
 
     BEGIN_LOOP()
     stmt();
-    emit_loop(loop_start);
     END_LOOP()
+    emit_loop(loop_start);
 
     if (exit_offset != 0) {
         patch_branch(exit_offset);
@@ -697,7 +683,7 @@ static void number(bool can_assign)
 
 static void string(bool can_assign)
 {
-    emit_constant(VALUE_MKOBJ(obj_copy_string(parser.prev.start + 1, parser.prev.len   - 2)));
+    emit_constant(VALUE_MKOBJ(obj_copy_string(parser.prev.start + 1, parser.prev.len - 2)));
 }
 
 static void grouping(bool can_assign)
@@ -709,40 +695,36 @@ static void grouping(bool can_assign)
 static void named_var(Token name, bool can_assign)
 {
     u8 getop, setop;
-    bool local = false;
-    bool found;
-    int arg = resolve_local(curr, &name, &found);
-    if (found) {
+    bool is_const;
+    Local *local = resolve_local(curr, &name);
+    int arg;
+
+    if (local) {
+        arg = local - curr->locals;
         getop = OP_GET_LOCAL;
         setop = OP_SET_LOCAL;
-        local = true;
+        is_const = local->is_const;
     } else {
         arg = make_ident_constant(&name);
         getop = OP_GET_GLOBAL;
         setop = OP_SET_GLOBAL;
+        Value v;
+        is_const = table_lookup(&global_consts, token_to_string(&name), &v);
     }
+
     if (can_assign && match(TOKEN_EQ)) {
-        if (is_const_var(arg, &name, local)) {
+        if (is_const) {
             error("can't assign to const variable");
             return;
         }
         expr();
-        if (local) {
-            emit_byte(setop);
-            emit_byte(arg & 0xFF);
-            emit_byte((arg >> 8) & 0xFF);
-            emit_byte((arg >> 16) & 0xFF);
-        } else
-            emit_two(setop, arg);
-    } else {
-        if (local) {
-            emit_byte(getop);
-            emit_byte(arg & 0xFF);
-            emit_byte((arg >> 8) & 0xFF);
-            emit_byte((arg >> 16) & 0xFF);
-        } else
-            emit_two(getop, arg);
-    }
+        emit_byte(setop);
+    } else
+        emit_byte(getop);
+
+    emit_byte(arg & 0xFF);
+    if (local)
+        emit_byte((arg >> 8) & 0xFF);
 }
 
 static void variable(bool can_assign)

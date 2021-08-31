@@ -213,16 +213,14 @@ static VMResult run()
         case OP_GET_LOCAL: {
             u8 b1 = READ_BYTE();
             u8 b2 = READ_BYTE();
-            u8 b3 = READ_BYTE();
-            u32 slot = b3 << 16 | b2 << 8 | b1;
+            u32 slot = b2 << 8 | b1;
             push(frame->slots[slot]);
             break;
         }
         case OP_SET_LOCAL: {
             u8 b1 = READ_BYTE();
             u8 b2 = READ_BYTE();
-            u8 b3 = READ_BYTE();
-            u32 slot = b3 << 16 | b2 << 8 | b1;
+            u32 slot = b2 << 8 | b1;
             frame->slots[slot] = peek(0);
             break;
         }
