@@ -2,7 +2,6 @@
 #define MEMORY_H_INCLUDED
 
 #include <stddef.h>
-#include "object.h"
 
 void *reallocate(void *ptr, size_t old, size_t new);
 

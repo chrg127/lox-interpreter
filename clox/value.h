@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include "vector.h"
 
 typedef enum {
     VAL_BOOL,
@@ -43,9 +44,9 @@ typedef struct {
     size_t cap;
 } ValueArray;
 
-void valuearray_init(ValueArray *arr);
-void valuearray_write(ValueArray *arr, Value value);
-void valuearray_free(ValueArray *arr);
+VECTOR_DECLARE_INIT(ValueArray, Value, valuearray);
+VECTOR_DECLARE_WRITE(ValueArray, Value, valuearray);
+VECTOR_DECLARE_FREE(ValueArray, Value, valuearray);
 
 void value_print(Value value);
 bool value_equal(Value a, Value b);

@@ -69,8 +69,8 @@ static void reset_stack()
 static void runtime_error(const char *fmt, ...)
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
-    size_t instr = frame->ip - frame->fun->chunk.code - 1;
-    int line = frame->fun->chunk.lines[instr];
+    size_t offset = frame->ip - frame->fun->chunk.code - 1;
+    int line = frame->fun->chunk.lines[offset];
     fprintf(stderr, "%s:%d: runtime error: ", vm.filename, line);
 
     va_list args;
@@ -83,8 +83,8 @@ static void runtime_error(const char *fmt, ...)
     for (int i = vm.frame_size - 1; i >= 0; i--) {
         CallFrame *frame = &vm.frames[i];
         ObjFunction *fun = frame->fun;
-        size_t instr = frame->ip - fun->chunk.code - 1;
-        fprintf(stderr, "[line %d] in ", fun->chunk.lines[instr]);
+        size_t offset = frame->ip - fun->chunk.code - 1;
+        fprintf(stderr, "[line %d] in ", fun->chunk.lines[offset]);
         if (fun->name == NULL)
             fprintf(stderr, "script\n");
         else
