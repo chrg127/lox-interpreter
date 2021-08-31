@@ -169,8 +169,10 @@ static void emit_byte(u8 byte)
     chunk_write(curr_chunk(), byte, parser.prev.line);
 }
 
-static void emit_two(u8 b1, u8 b2)  { emit_byte(b1); emit_byte(b2); }
-static void emit_return()           { emit_two(OP_NIL, OP_RETURN); }
+static void emit_two(u8 b1, u8 b2)          { emit_byte(b1); emit_byte(b2); }
+static void emit_three(u8 b1, u8 b2, u8 b3) { emit_byte(b1); emit_byte(b2); emit_byte(b3); }
+static void emit_u16(u8 b1, u16 b2)         { emit_three(b1, b2 & 0xFF, (b2 >> 8) & 0xFF); }
+static void emit_return()                   { emit_two(OP_NIL, OP_RETURN); }
 
 static u16 make_constant(Value value)
 {
@@ -196,9 +198,7 @@ static void emit_constant(Value value)
 
 static size_t emit_branch(u8 instr)
 {
-    emit_byte(instr);
-    emit_byte(0xFF);
-    emit_byte(0xFF);
+    emit_three(instr, 0xFF, 0xFF);
     return curr_chunk()->size - 2;
 }
 
@@ -330,9 +330,7 @@ static void define_var(u16 global)
         mark_initialized();
         return;
     }
-    emit_byte(OP_DEFINE_GLOBAL);
-    emit_byte( global       & 0xFF);
-    emit_byte((global >> 8) & 0xFF);
+    emit_u16(OP_DEFINE_GLOBAL, global);
 }
 
 static Local *resolve_local(Compiler *compiler, Token *name)
@@ -727,12 +725,9 @@ static void named_var(Token name, bool can_assign)
             return;
         }
         expr();
-        emit_byte(setop);
+        emit_u16(setop, arg);
     } else
-        emit_byte(getop);
-
-    emit_byte(arg & 0xFF);
-    emit_byte((arg >> 8) & 0xFF);
+        emit_u16(getop, arg);
 }
 
 static void variable(bool can_assign)
