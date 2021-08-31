@@ -12,8 +12,8 @@
 #endif
 
 #define LOCAL_COUNT  UINT16_COUNT
-#define GLOBAL_COUNT UINT8_COUNT
-#define CONSTANT_MAX UINT8_MAX
+#define GLOBAL_COUNT UINT16_COUNT
+#define CONSTANT_MAX UINT16_MAX
 #define JUMP_MAX     UINT16_MAX
 
 typedef enum {
@@ -172,19 +172,26 @@ static void emit_byte(u8 byte)
 static void emit_two(u8 b1, u8 b2)  { emit_byte(b1); emit_byte(b2); }
 static void emit_return()           { emit_two(OP_NIL, OP_RETURN); }
 
-static u8 make_constant(Value value)
+static u16 make_constant(Value value)
 {
-    int constant = chunk_add_const(curr_chunk(), value);
+    size_t constant = chunk_add_const(curr_chunk(), value);
     if (constant > CONSTANT_MAX) {
         error("too many constants in one chunk");
         return 0;
     }
-    return (u8) constant;
+    return (u16) constant;
 }
 
 static void emit_constant(Value value)
 {
-    emit_two(OP_CONSTANT, make_constant(value));
+    u16 offset = make_constant(value);
+    if (offset < 0xFF)
+        emit_two(OP_CONSTANT, offset & 0xFF);
+    else {
+        emit_byte(OP_CONSTANT_LONG);
+        emit_byte( offset       & 0xFF);
+        emit_byte((offset >> 8) & 0xFF);
+    }
 }
 
 static size_t emit_branch(u8 instr)
@@ -201,8 +208,8 @@ static void emit_loop(size_t loop_start)
     size_t offset = curr_chunk()->size - loop_start + 2;
     if (offset > JUMP_MAX)
         error("loop body too large");
-    emit_byte((offset >> 8) & 0xFF);
     emit_byte( offset       & 0xFF);
+    emit_byte((offset >> 8) & 0xFF);
 }
 
 
@@ -263,7 +270,7 @@ static void end_scope()
     }
 }
 
-static u8 make_ident_constant(Token *name)
+static u16 make_ident_constant(Token *name)
 {
     return make_constant(VALUE_MKOBJ(token_to_string(name)));
 }
@@ -317,13 +324,15 @@ static void mark_initialized()
     curr->locals[curr->local_count-1].depth = curr->scope_depth;
 }
 
-static void define_var(u8 global)
+static void define_var(u16 global)
 {
     if (curr->scope_depth > 0) {
         mark_initialized();
         return;
     }
-    emit_two(OP_DEFINE_GLOBAL, global);
+    emit_byte(OP_DEFINE_GLOBAL);
+    emit_byte( global       & 0xFF);
+    emit_byte((global >> 8) & 0xFF);
 }
 
 static Local *resolve_local(Compiler *compiler, Token *name)
@@ -349,7 +358,7 @@ static void expr();
 static void block();
 static void expr_stmt();
 
-static u8 parse_var(bool is_const, const char *errmsg)
+static u16 parse_var(bool is_const, const char *errmsg)
 {
     consume(TOKEN_IDENT, errmsg);
     declare_var(is_const);
@@ -359,7 +368,7 @@ static u8 parse_var(bool is_const, const char *errmsg)
 
 static void var_decl(bool is_const)
 {
-    u8 global = parse_var(is_const, "expected variable name");
+    u16 global = parse_var(is_const, "expected variable name");
     if (match(TOKEN_EQ))
         expr();
     else
@@ -380,7 +389,7 @@ static void function(FunctionType type)
             curr->fun->arity++;
             if (curr->fun->arity > 255)
                 error_curr("can't have more than 255 parameters");
-            u8 constant = parse_var(false, "expected parameter name");
+            u16 constant = parse_var(false, "expected parameter name");
             define_var(constant);
         } while (match(TOKEN_COMMA));
     }
@@ -389,12 +398,12 @@ static void function(FunctionType type)
     block();
 
     ObjFunction *fun = compiler_end();
-    emit_two(OP_CONSTANT, make_constant(VALUE_MKOBJ(fun)));
+    emit_constant(VALUE_MKOBJ(fun));
 }
 
 static void fun_decl()
 {
-    u8 global = parse_var(false, "expected function name");
+    u16 global = parse_var(false, "expected function name");
     mark_initialized();
     function(TYPE_FUNCTION);
     define_var(global);
@@ -697,7 +706,7 @@ static void named_var(Token name, bool can_assign)
     u8 getop, setop;
     bool is_const;
     Local *local = resolve_local(curr, &name);
-    int arg;
+    u16 arg;
 
     if (local) {
         arg = local - curr->locals;
@@ -723,8 +732,7 @@ static void named_var(Token name, bool can_assign)
         emit_byte(getop);
 
     emit_byte(arg & 0xFF);
-    if (local)
-        emit_byte((arg >> 8) & 0xFF);
+    emit_byte((arg >> 8) & 0xFF);
 }
 
 static void variable(bool can_assign)

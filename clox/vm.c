@@ -153,9 +153,10 @@ static VMResult run()
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
 #define READ_BYTE() (*frame->ip++)
-#define READ_SHORT() (frame->ip += 2, (u16)((frame->ip[-2] << 8) | frame->ip[-1]))
-#define READ_CONSTANT() (frame->fun->chunk.constants.values[READ_BYTE()])
-#define READ_STRING() AS_STRING(READ_CONSTANT())
+#define READ_SHORT() (frame->ip += 2, (u16)((frame->ip[-1] << 8) | frame->ip[-2]))
+#define READ_CONSTANT()      (frame->fun->chunk.constants.values[READ_BYTE()])
+#define READ_CONSTANT_LONG() (frame->fun->chunk.constants.values[READ_SHORT()])
+#define READ_STRING() AS_STRING(READ_CONSTANT_LONG())
 #define BINARY_OP(value_type, op) \
     do {                    \
         if (!IS_NUM(peek(0)) || !IS_NUM(peek(1))) { \
@@ -177,6 +178,11 @@ static VMResult run()
         switch (instr) {
         case OP_CONSTANT: {
             Value constant = READ_CONSTANT();
+            push(constant);
+            break;
+        }
+        case OP_CONSTANT_LONG: {
+            Value constant = READ_CONSTANT_LONG();
             push(constant);
             break;
         }
@@ -211,16 +217,12 @@ static VMResult run()
             break;
         }
         case OP_GET_LOCAL: {
-            u8 b1 = READ_BYTE();
-            u8 b2 = READ_BYTE();
-            u32 slot = b2 << 8 | b1;
+            u16 slot = READ_SHORT();
             push(frame->slots[slot]);
             break;
         }
         case OP_SET_LOCAL: {
-            u8 b1 = READ_BYTE();
-            u8 b2 = READ_BYTE();
-            u32 slot = b2 << 8 | b1;
+            u16 slot = READ_SHORT();
             frame->slots[slot] = peek(0);
             break;
         }
