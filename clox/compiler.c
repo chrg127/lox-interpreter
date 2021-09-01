@@ -223,7 +223,6 @@ static void compiler_init(Compiler *compiler, FunctionType type)
     compiler->type = type;
     compiler->local_count = 0;
     compiler->scope_depth = 0;
-    // compiler->locals = ALLOCATE(Local, UINT24_COUNT);
     compiler->inside_loop = false;
     compiler->loop_start = 0;
     // we assign NULL to function first due to garbage collection
@@ -240,7 +239,6 @@ static void compiler_init(Compiler *compiler, FunctionType type)
 
 static ObjFunction *compiler_end()
 {
-    // FREE_ARRAY(Local, curr->locals, UINT24_COUNT);
     emit_return();
     ObjFunction *fun = curr->fun;
 #ifdef DEBUG_PRINT_CODE
@@ -429,8 +427,8 @@ static void patch_branch(size_t offset)
     size_t jump = curr_chunk()->size - offset - 2;
     if (jump > JUMP_MAX)
         error("too much code to jump over");
-    curr_chunk()->code[offset  ] = (jump >> 8) & 0xFF;
-    curr_chunk()->code[offset+1] =  jump       & 0xFF;
+    curr_chunk()->code[offset  ] =  jump       & 0xFF;
+    curr_chunk()->code[offset+1] = (jump >> 8) & 0xFF;
 }
 
 static void if_stmt()
@@ -543,6 +541,43 @@ static void continue_stmt()
     emit_loop(curr->loop_start);
 }
 
+static void switch_stmt()
+{
+    consume(TOKEN_LEFT_PAREN,  "expected '(' after switch");
+    expr();
+    consume(TOKEN_RIGHT_PAREN, "expected ')' after expression");
+
+    consume(TOKEN_LEFT_BRACE, "expected '{' after ')'");
+    vec_size_t case_offsets;
+    vec_size_t_init(&case_offsets);
+    size_t offset = 0;
+    while (!match(TOKEN_RIGHT_BRACE) && !match(TOKEN_DEFAULT)) {
+        if (offset != 0)
+            patch_branch(offset);
+        consume(TOKEN_CASE, "expected 'case'");
+        expr();
+        consume(TOKEN_DCOLON, "expected ':' after expression");
+        emit_byte(OP_EQ);
+        offset = emit_branch(OP_BRANCH_FALSE);
+        emit_byte(OP_POP);
+        while (!check(TOKEN_CASE) && !check(TOKEN_RIGHT_BRACE) && !check(TOKEN_DEFAULT))
+            stmt();
+        vec_size_t_write(&case_offsets, emit_branch(OP_BRANCH));
+    }
+    if (offset != 0)
+        patch_branch(offset);
+
+    if (parser.prev.type == TOKEN_DEFAULT) {
+        consume(TOKEN_DCOLON, "expected ':' after 'default'");
+        while (!match(TOKEN_RIGHT_BRACE))
+            stmt();
+    }
+
+    for (size_t i = 0; i < case_offsets.size; i++)
+        patch_branch(case_offsets.data[i]);
+    vec_size_t_free(&case_offsets);
+}
+
 static void block()
 {
     while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF))
@@ -565,6 +600,7 @@ static void stmt()
     else if (match(TOKEN_FOR))    for_stmt();
     else if (match(TOKEN_RETURN)) return_stmt();
     else if (match(TOKEN_CONTINUE)) continue_stmt();
+    else if (match(TOKEN_SWITCH)) switch_stmt();
     else if (match(TOKEN_LEFT_BRACE)) {
         begin_scope();
         block();

@@ -76,10 +76,20 @@ typedef struct {
     size_t cap;
 } u8vec;
 
+typedef struct {
+    size_t *data;
+    size_t size;
+    size_t cap;
+} vec_size_t;
+
 VECTOR_DECLARE_INIT(u8vec, u8, u8vec);
 VECTOR_DECLARE_WRITE(u8vec, u8, u8vec);
 VECTOR_DECLARE_FREE(u8vec, u8, u8vec);
 VECTOR_DECLARE_SEARCH(u8vec, u8, u8vec);
 VECTOR_DECLARE_DELETE(u8vec, u8, u8vec);
+
+VECTOR_DECLARE_INIT(vec_size_t, size_t, vec_size_t);
+VECTOR_DECLARE_WRITE(vec_size_t, size_t,vec_size_t);
+VECTOR_DECLARE_FREE(vec_size_t, size_t, vec_size_t);
 
 #endif
