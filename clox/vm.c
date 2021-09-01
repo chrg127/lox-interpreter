@@ -75,6 +75,8 @@ static void runtime_error(const char *fmt, ...)
     va_end(args);
     fputs("\n", stderr);
 
+    CallFrame *curr_frame = &vm.frames[vm.frame_size-1];
+    curr_frame->ip = vm.ip;
     fprintf(stderr, "traceback:\n");
     for (int i = vm.frame_size - 1; i >= 0; i--) {
         CallFrame *frame = &vm.frames[i];
@@ -252,8 +254,7 @@ static VMResult run()
                 runtime_error("operand must be a number");
                 return VM_RUNTIME_ERROR;
             }
-            // vm.sp[-1] = VALUE_MKNUM(-AS_NUM(vm.sp[-1]));
-            push(VALUE_MKNUM(-AS_NUM(pop())));
+            vm.sp[-1] = VALUE_MKNUM(-AS_NUM(vm.sp[-1]));
             break;
         case OP_PRINT:
             value_print(pop());
