@@ -18,7 +18,7 @@ typedef struct ObjString ObjString;
 
 typedef struct {
     ValueType type;
-    u32 hash;
+    // u32 hash;
     union {
         bool boolean;
         double number;
@@ -28,11 +28,12 @@ typedef struct {
 
 u32 hash_num(double n);
 u32 hash_bool(bool b);
+u32 hash_value(Value value);
 
-#define VALUE_MKBOOL(value) ((Value) { VAL_BOOL, hash_bool(value),  { .boolean = value       } })
-#define VALUE_MKNIL()       ((Value) { VAL_NIL,  0,                { .number  = 0           } })
-#define VALUE_MKNUM(value)  ((Value) { VAL_NUM,  hash_num(value), { .number  = value       } })
-#define VALUE_MKOBJ(value)  ((Value) { VAL_OBJ,  obj_hash((Obj*)value),  { .obj     = (Obj*)value } })
+#define VALUE_MKBOOL(value) ((Value) { VAL_BOOL, { .boolean = value       } })
+#define VALUE_MKNIL()       ((Value) { VAL_NIL,  { .number  = 0           } })
+#define VALUE_MKNUM(value)  ((Value) { VAL_NUM,  { .number  = value       } })
+#define VALUE_MKOBJ(value)  ((Value) { VAL_OBJ,  { .obj = (Obj*)value } })
 
 #define AS_BOOL(value)      ((value).as.boolean)
 #define AS_NUM(value)       ((value).as.number)

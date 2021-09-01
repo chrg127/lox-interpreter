@@ -18,6 +18,7 @@ typedef struct {
 typedef struct {
     CallFrame frames[FRAMES_MAX];
     size_t frame_size;
+    u8 *ip;
     Value *stack;//[STACK_MAX];
     Value *sp;
     Table globals;

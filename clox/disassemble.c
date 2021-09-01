@@ -22,7 +22,7 @@ static int const_long_instr(const char *name, Chunk *chunk, size_t offset)
 {
     u8 b1 = chunk->code[offset + 1];
     u8 b2 = chunk->code[offset + 2];
-    u16 index = b1 << 8 | b2;
+    u16 index = b2 << 8 | b1;
     printf("%s %d %d (%d) '", name, b1, b2, index);
     value_print(chunk->constants.values[index]);
     printf("'");
@@ -42,7 +42,7 @@ static size_t byte2_instr(const char *name, Chunk *chunk, size_t offset)
     u8 b2 = chunk->code[offset+2];
     u16 slot = b2 << 8 | b1;
     printf("%s %d %d (%d)", name, b1, b2, slot);
-    return offset + 4;
+    return offset + 3;
 }
 
 static size_t byte3_instr(const char *name, Chunk *chunk, size_t offset)

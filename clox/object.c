@@ -18,18 +18,11 @@ static Obj *alloc_obj(size_t size, ObjType type)
 #define ALLOCATE_OBJ(type, obj_type) \
     (type *) alloc_obj(sizeof(type), obj_type)
 
-// static ObjString *alloc_str(char *data, size_t len, bool owning)
 static ObjString *alloc_str(char *data, size_t len, u32 hash)
 {
-    // using flexible array member
-    // ObjString *str = (ObjString *) alloc_obj(sizeof(ObjString) + sizeof(char)*len, OBJ_STRING);
     ObjString *str = ALLOCATE_OBJ(ObjString, OBJ_STRING);
     str->len  = len;
     str->data = data;
-
-    // str->owning = owning;
-    // memcpy(str->data, data, len);
-
     str->hash = hash;
     table_install(&vm.strings, str, VALUE_MKNIL());
     return str;
@@ -58,16 +51,8 @@ ObjString *obj_copy_string(const char *str, size_t len)
     return alloc_str(newstr, len, hash);
 }
 
-ObjString *obj_make_string_nonowning(char *str, size_t len)
-{
-    return NULL;
-    // return alloc_str(str, len, false);
-}
-
 ObjString *obj_take_string(char *data, size_t len)
 {
-    // return alloc_str(data, len, true);
-
     u32 hash = hash_string(data, len);
     ObjString *interned = table_find_string(&vm.strings, data, len, hash);
     if (interned != NULL) {
@@ -147,6 +132,11 @@ u32 obj_hash(Obj *obj)
 {
     switch (obj->type) {
     case OBJ_STRING: return ((ObjString *)obj)->hash;
+    case OBJ_FUNCTION: return ((ObjFunction *)obj)->name->hash;
+    case OBJ_NATIVE: {
+        const char *str = ((ObjNative *)obj)->name;
+        return hash_string(str, strlen(str));
+    }
     default: return 0;
     }
 }

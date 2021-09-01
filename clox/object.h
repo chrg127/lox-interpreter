@@ -21,8 +21,6 @@ struct Obj {
 struct ObjString {
     Obj obj;
     size_t len;
-    // bool owning;
-    //char data[];
     char *data;
     u32 hash;
 };
@@ -64,7 +62,6 @@ ObjFunction *obj_make_fun();
 ObjNative *obj_make_native(NativeFn fun, const char *name);
 void obj_print(Value value);
 void obj_free_arr(Obj *objects);
-ObjString *obj_make_string_nonowning(char *str, size_t len);
 u32 obj_hash(Obj *obj);
 bool obj_strcmp(Value a, Value b);
 

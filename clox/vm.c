@@ -12,15 +12,8 @@
 
 VM vm;
 
-void push(Value value)
-{
-    *vm.sp++ = value;
-}
-
-Value pop()
-{
-    return *--vm.sp;
-}
+void push(Value value) { *vm.sp++ = value; }
+Value pop()            { return *--vm.sp;  }
 
 static void print_stack()
 {
@@ -72,7 +65,7 @@ static void reset_stack()
 static void runtime_error(const char *fmt, ...)
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
-    size_t offset = frame->ip - frame->fun->chunk.code - 1;
+    size_t offset = vm.ip - frame->fun->chunk.code - 1;
     int line = chunk_get_line(&frame->fun->chunk, offset);
     fprintf(stderr, "%s:%d: runtime error: ", vm.filename, line);
 
@@ -152,8 +145,9 @@ static Value clock_native(int argc, Value *argv)
 static VMResult run()
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
-#define READ_BYTE() (*frame->ip++)
-#define READ_SHORT() (frame->ip += 2, (u16)((frame->ip[-1] << 8) | frame->ip[-2]))
+    vm.ip = frame->ip;
+#define READ_BYTE() (*vm.ip++)
+#define READ_SHORT() (vm.ip += 2, (u16)((vm.ip[-1] << 8) | vm.ip[-2]))
 #define READ_CONSTANT()      (frame->fun->chunk.constants.values[READ_BYTE()])
 #define READ_CONSTANT_LONG() (frame->fun->chunk.constants.values[READ_SHORT()])
 #define READ_STRING() AS_STRING(READ_CONSTANT_LONG())
@@ -171,7 +165,7 @@ static VMResult run()
     for (;;) {
 #ifdef DEBUG_TRACE_EXECUTION
         print_stack();
-        disassemble_opcode(&frame->fun->chunk, (size_t)(frame->ip - frame->fun->chunk.code));
+        disassemble_opcode(&frame->fun->chunk, (size_t)(vm.ip - frame->fun->chunk.code));
         printf("\n");
 #endif
         u8 instr = READ_BYTE();
@@ -249,9 +243,10 @@ static VMResult run()
         case OP_SUB:    BINARY_OP(VALUE_MKNUM, -); break;
         case OP_MUL:    BINARY_OP(VALUE_MKNUM, *); break;
         case OP_DIV:    BINARY_OP(VALUE_MKNUM, /); break;
-        case OP_NOT:
+        case OP_NOT: {
             push(VALUE_MKBOOL(is_falsey(pop())));
             break;
+        }
         case OP_NEGATE:
             if (!IS_NUM(peek(0))) {
                 runtime_error("operand must be a number");
@@ -266,25 +261,27 @@ static VMResult run()
             break;
         case OP_BRANCH: {
             u16 offset = READ_SHORT();
-            frame->ip += offset;
+            vm.ip += offset;
             break;
         }
         case OP_BRANCH_FALSE: {
             u16 offset = READ_SHORT();
             if (is_falsey(peek(0)))
-                frame->ip += offset;
+                vm.ip += offset;
             break;
         }
         case OP_BRANCH_BACK: {
             u16 offset = READ_SHORT();
-            frame->ip -= offset;
+            vm.ip -= offset;
             break;
         }
         case OP_CALL: {
             u8 argc = READ_BYTE();
+            frame->ip = vm.ip;
             if (!call_value(peek(argc), argc))
                 return VM_RUNTIME_ERROR;
-            frame = &vm.frames[vm.frame_size - 1];
+            frame = &vm.frames[vm.frame_size-1];
+            vm.ip = frame->ip;
             break;
         }
         case OP_RETURN: {
@@ -297,6 +294,7 @@ static VMResult run()
             vm.sp = frame->slots;
             push(result);
             frame = &vm.frames[vm.frame_size-1];
+            vm.ip = frame->ip;
             break;
         }
         default:

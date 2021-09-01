@@ -42,3 +42,14 @@ u32 hash_bool(bool b)
 {
     return b;
 }
+
+u32 hash_value(Value value)
+{
+    switch (value.type) {
+    case VAL_BOOL: return hash_bool(AS_BOOL(value));
+    case VAL_NUM:  return hash_num(AS_NUM(value));
+    case VAL_NIL:  return 0;
+    case VAL_OBJ:  return obj_hash(AS_OBJ(value));
+    default: return 0;
+    }
+}

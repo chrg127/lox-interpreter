@@ -4,6 +4,12 @@ fun fib(n) {
     return fib(n - 1) + fib(n - 2);
 }
 
+fun fac(n) {
+    if (n <= 1)
+        return 1;
+    return n * fac(n-1);
+}
+
 var start = clock();
-print fib(35);
+print fac(5);
 print clock() - start;
