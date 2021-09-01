@@ -6,6 +6,7 @@
 #include "uint.h"
 #include "value.h"
 #include "chunk.h"
+#include "native.h"
 
 typedef enum {
     OBJ_STRING,
@@ -31,8 +32,6 @@ typedef struct {
     Chunk chunk;
     ObjString *name;
 } ObjFunction;
-
-typedef Value (*NativeFn)(int argc, Value *argv);
 
 typedef struct {
     Obj obj;

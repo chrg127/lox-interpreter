@@ -4,11 +4,11 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <string.h>
-#include <time.h>
 #include "compiler.h"
 #include "disassemble.h"
 #include "object.h"
 #include "memory.h"
+#include "native.h"
 
 VM vm;
 
@@ -62,7 +62,7 @@ static void reset_stack()
     vm.frame_size = 0;
 }
 
-static void runtime_error(const char *fmt, ...)
+void runtime_error(const char *fmt, ...)
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
     size_t offset = vm.ip - frame->fun->chunk.code - 1;
@@ -124,9 +124,11 @@ static bool call_value(Value callee, u8 argc)
                 return false;
             }
             NativeFn native = obj->fun;
-            Value result = native(argc, vm.sp - argc);
+            NativeResult result = native(argc, vm.sp - argc);
+            if (result.error)
+                return false;
             vm.sp -= argc + 1;
-            push(result);
+            push(result.value);
             return true;
         }
         default:
@@ -144,11 +146,6 @@ static void define_native(const char *name, NativeFn fun, u8 arity)
     table_install(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
     pop();
     pop();
-}
-
-static Value clock_native(int argc, Value *argv)
-{
-    return VALUE_MKNUM((double)clock() / CLOCKS_PER_SEC);
 }
 
 static VMResult run()
@@ -324,7 +321,7 @@ void vm_init()
     vm.objects = NULL;
     table_init(&vm.globals);
     table_init(&vm.strings);
-    define_native("clock", clock_native, 0);
+    define_native("clock", native_clock, 0);
 }
 
 void vm_free()
