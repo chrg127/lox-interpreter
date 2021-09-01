@@ -37,6 +37,7 @@ typedef Value (*NativeFn)(int argc, Value *argv);
 typedef struct {
     Obj obj;
     NativeFn fun;
+    u8 arity;
     const char *name;
 } ObjNative;
 
@@ -55,11 +56,12 @@ static inline bool obj_is_type(Value value, ObjType type)
 #define AS_CSTRING(value)   (((ObjString *) AS_OBJ(value))->data)
 #define AS_FUNCTION(value)  ((ObjFunction *) AS_OBJ(value))
 #define AS_NATIVE(value)    (((ObjNative *) AS_OBJ(value))->fun)
+#define AS_NATIVE_OBJ(value) ((ObjNative *) AS_OBJ(value))
 
 ObjString *obj_copy_string(const char *str, size_t len);
 ObjString *obj_take_string(char *data, size_t len);
 ObjFunction *obj_make_fun();
-ObjNative *obj_make_native(NativeFn fun, const char *name);
+ObjNative *obj_make_native(NativeFn fun, const char *name, u8 arity);
 void obj_print(Value value);
 void obj_free_arr(Obj *objects);
 u32 obj_hash(Obj *obj);

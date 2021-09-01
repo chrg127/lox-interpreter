@@ -76,7 +76,7 @@ static void runtime_error(const char *fmt, ...)
     fputs("\n", stderr);
 
     // update current frame ip
-    vm.frames[vm.frame_size-1].ip = vm.ip
+    vm.frames[vm.frame_size-1].ip = vm.ip;
 
     fprintf(stderr, "traceback:\n");
     for (int i = vm.frame_size - 1; i >= 0; i--) {
@@ -117,7 +117,13 @@ static bool call_value(Value callee, u8 argc)
         case OBJ_FUNCTION:
             return call(AS_FUNCTION(callee), argc);
         case OBJ_NATIVE: {
-            NativeFn native = AS_NATIVE(callee);
+            ObjNative *obj = AS_NATIVE_OBJ(callee);
+            if (obj->arity != argc) {
+                runtime_error("expected %d arguments for %s function, got %d",
+                              obj->arity, obj->name, argc);
+                return false;
+            }
+            NativeFn native = obj->fun;
             Value result = native(argc, vm.sp - argc);
             vm.sp -= argc + 1;
             push(result);
@@ -131,10 +137,10 @@ static bool call_value(Value callee, u8 argc)
     return false;
 }
 
-static void define_native(const char *name, NativeFn fun)
+static void define_native(const char *name, NativeFn fun, u8 arity)
 {
     push(VALUE_MKOBJ(obj_copy_string(name, strlen(name))));
-    push(VALUE_MKOBJ(obj_make_native(fun, name)));
+    push(VALUE_MKOBJ(obj_make_native(fun, name, arity)));
     table_install(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
     pop();
     pop();
@@ -318,7 +324,7 @@ void vm_init()
     vm.objects = NULL;
     table_init(&vm.globals);
     table_init(&vm.strings);
-    define_native("clock", clock_native);
+    define_native("clock", clock_native, 0);
 }
 
 void vm_free()

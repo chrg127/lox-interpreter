@@ -71,11 +71,12 @@ ObjFunction *obj_make_fun()
     return fun;
 }
 
-ObjNative *obj_make_native(NativeFn fun, const char *name)
+ObjNative *obj_make_native(NativeFn fun, const char *name, u8 arity)
 {
     ObjNative *native = ALLOCATE_OBJ(ObjNative, OBJ_NATIVE);
     native->fun  = fun;
     native->name = name;
+    native->arity = arity;
     return native;
 }
 
