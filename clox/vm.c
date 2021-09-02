@@ -4,11 +4,11 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <string.h>
-#include <time.h>
 #include "compiler.h"
 #include "disassemble.h"
 #include "object.h"
 #include "memory.h"
+#include "native.h"
 
 VM vm;
 
@@ -62,7 +62,7 @@ static void reset_stack()
     vm.frame_size = 0;
 }
 
-static void runtime_error(const char *fmt, ...)
+void runtime_error(const char *fmt, ...)
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
     size_t offset = vm.ip - frame->fun->chunk.code - 1;
@@ -75,14 +75,15 @@ static void runtime_error(const char *fmt, ...)
     va_end(args);
     fputs("\n", stderr);
 
-    CallFrame *curr_frame = &vm.frames[vm.frame_size-1];
-    curr_frame->ip = vm.ip;
+    // update current frame ip
+    vm.frames[vm.frame_size-1].ip = vm.ip;
+
     fprintf(stderr, "traceback:\n");
     for (int i = vm.frame_size - 1; i >= 0; i--) {
         CallFrame *frame = &vm.frames[i];
         ObjFunction *fun = frame->fun;
         size_t offset = frame->ip - fun->chunk.code - 1;
-        fprintf(stderr, "[line %ld] in ", chunk_get_line(&fun->chunk, offset));
+        fprintf(stderr, "%s:%ld: in ", vm.filename, chunk_get_line(&fun->chunk, offset));
         if (fun->name == NULL)
             fprintf(stderr, "script\n");
         else
@@ -116,10 +117,18 @@ static bool call_value(Value callee, u8 argc)
         case OBJ_FUNCTION:
             return call(AS_FUNCTION(callee), argc);
         case OBJ_NATIVE: {
-            NativeFn native = AS_NATIVE(callee);
-            Value result = native(argc, vm.sp - argc);
+            ObjNative *obj = AS_NATIVE_OBJ(callee);
+            if (obj->arity != argc) {
+                runtime_error("expected %d arguments for %s function, got %d",
+                              obj->arity, obj->name, argc);
+                return false;
+            }
+            NativeFn native = obj->fun;
+            NativeResult result = native(argc, vm.sp - argc);
+            if (result.error)
+                return false;
             vm.sp -= argc + 1;
-            push(result);
+            push(result.value);
             return true;
         }
         default:
@@ -130,18 +139,13 @@ static bool call_value(Value callee, u8 argc)
     return false;
 }
 
-static void define_native(const char *name, NativeFn fun)
+static void define_native(const char *name, NativeFn fun, u8 arity)
 {
     push(VALUE_MKOBJ(obj_copy_string(name, strlen(name))));
-    push(VALUE_MKOBJ(obj_make_native(fun, name)));
+    push(VALUE_MKOBJ(obj_make_native(fun, name, arity)));
     table_install(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
     pop();
     pop();
-}
-
-static Value clock_native(int argc, Value *argv)
-{
-    return VALUE_MKNUM((double)clock() / CLOCKS_PER_SEC);
 }
 
 static VMResult run()
@@ -317,7 +321,7 @@ void vm_init()
     vm.objects = NULL;
     table_init(&vm.globals);
     table_init(&vm.strings);
-    define_native("clock", clock_native);
+    define_native("clock", native_clock, 0);
 }
 
 void vm_free()
