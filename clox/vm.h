@@ -38,6 +38,7 @@ typedef enum {
 void vm_init();
 void vm_free();
 VMResult vm_interpret(const char *src, const char *filename);
-void runtime_error(const char *fmt, ...);
+void native_runtime_error(const char *fn, const char *fmt, ...);
+// void runtime_error(const char *fmt, ...);
 
 #endif

@@ -62,17 +62,14 @@ static void reset_stack()
     vm.frame_size = 0;
 }
 
-void runtime_error(const char *fmt, ...)
+static void v_runtime_error(const char *fmt, va_list args)
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
     size_t offset = vm.ip - frame->fun->chunk.code - 1;
     int line = chunk_get_line(&frame->fun->chunk, offset);
     fprintf(stderr, "%s:%d: runtime error: ", vm.filename, line);
 
-    va_list args;
-    va_start(args, fmt);
     vfprintf(stderr, fmt, args);
-    va_end(args);
     fputs("\n", stderr);
 
     // update current frame ip
@@ -91,6 +88,23 @@ void runtime_error(const char *fmt, ...)
     }
 
     reset_stack();
+}
+
+void native_runtime_error(const char *fn, const char *fmt, ...)
+{
+    fprintf(stderr, "in native function %s:\n", fn);
+    va_list args;
+    va_start(args, fmt);
+    v_runtime_error(fmt, args);
+    va_end(args);
+}
+
+void runtime_error(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    v_runtime_error(fmt, args);
+    va_end(args);
 }
 
 static bool call(ObjFunction *fun, u8 argc)
@@ -322,6 +336,7 @@ void vm_init()
     table_init(&vm.globals);
     table_init(&vm.strings);
     define_native("clock", native_clock, 0);
+    define_native("sqrt",  native_sqrt,  1);
 }
 
 void vm_free()

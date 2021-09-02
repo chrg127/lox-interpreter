@@ -5,7 +5,7 @@ build := debug
 
 _objs_main := chunk.o compiler.o disassemble.o memory.o main.o object.o \
 			  scanner.o table.o value.o vm.o vector.o native.o
-libs :=
+libs := -lm
 CC := gcc
 CFLAGS := -I. -std=c11 -Wall -Wextra -pipe \
 		 -Wcast-align -Wcast-qual -Wpointer-arith -Wswitch \
