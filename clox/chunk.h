@@ -10,13 +10,14 @@ typedef enum {
     OP_NIL,
     OP_TRUE,
     OP_FALSE,
-    // OP_PUSH,
     OP_POP,
     OP_DEFINE_GLOBAL,
     OP_GET_GLOBAL,
     OP_SET_GLOBAL,
     OP_GET_LOCAL,
     OP_SET_LOCAL,
+    OP_GET_UPVALUE,
+    OP_SET_UPVALUE,
     OP_EQ,
     OP_GREATER,
     OP_LESS,
@@ -32,6 +33,8 @@ typedef enum {
     OP_BRANCH_BACK,
     OP_CALL,
     OP_RETURN,
+    OP_CLOSURE,
+    OP_CLOSE_UPVALUE,
 } Opcode;
 
 typedef struct {

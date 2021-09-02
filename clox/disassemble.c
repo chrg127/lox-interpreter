@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include "value.h"
+#include "object.h"
 
 static int simple_instr(const char *name, size_t offset)
 {
@@ -64,9 +65,11 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_SET_GLOBAL:     return const_instr("stg", chunk, offset);
     case OP_GET_LOCAL:      return byte_instr("ldl", chunk, offset);
     case OP_SET_LOCAL:      return byte_instr("stl", chunk, offset);
-    case OP_EQ:             return simple_instr("ceq", offset);
-    case OP_GREATER:        return simple_instr("cgt", offset);
-    case OP_LESS:           return simple_instr("cls", offset);
+    case OP_GET_UPVALUE:    return byte_instr("ldu", chunk, offset);
+    case OP_SET_UPVALUE:    return byte_instr("stu", chunk, offset);
+    case OP_EQ:             return simple_instr("cme", offset);
+    case OP_GREATER:        return simple_instr("cmg", offset);
+    case OP_LESS:           return simple_instr("cml", offset);
     case OP_ADD:            return simple_instr("add", offset);
     case OP_SUB:            return simple_instr("sub", offset);
     case OP_MUL:            return simple_instr("mul", offset);
@@ -78,6 +81,23 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_BRANCH_BACK:    return jump_instr("bbw", -1, chunk, offset);
     case OP_CALL:           return byte_instr("cal", chunk, offset);
     case OP_RETURN:         return simple_instr("ret", offset);
+    case OP_CLOSURE: {
+        offset++;
+        u8 constant = chunk->code[offset++];
+        printf("%s %d '", "clo", constant);
+        value_print(chunk->constants.values[constant]);
+        printf("'");
+
+        ObjFunction *fun = AS_FUNCTION(chunk->constants.values[constant]);
+        for (size_t j = 0; j < fun->upvalue_count; j++) {
+            int is_local = chunk->code[offset++];
+            int index    = chunk->code[offset++];
+            printf("\n%04ld:        | %s %d", offset - 2, is_local ? "local" : "upvalue", index);
+        }
+        return offset;
+    }
+    case OP_CLOSE_UPVALUE:
+        return simple_instr("clu", offset);
     default:
         printf("[unknown] [%d]", instr);
         return offset + 1;

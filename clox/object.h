@@ -10,6 +10,8 @@ typedef enum {
     OBJ_STRING,
     OBJ_FUNCTION,
     OBJ_NATIVE,
+    OBJ_CLOSURE,
+    OBJ_UPVALUE,
 } ObjType;
 
 struct Obj {
@@ -27,6 +29,7 @@ struct ObjString {
 typedef struct {
     Obj obj;
     int arity;
+    size_t upvalue_count;
     Chunk chunk;
     ObjString *name;
 } ObjFunction;
@@ -39,6 +42,20 @@ typedef struct {
     const char *name;
 } ObjNative;
 
+typedef struct ObjUpvalue {
+    Obj obj;
+    Value *location;
+    Value closed;
+    struct ObjUpvalue *next;
+} ObjUpvalue;
+
+typedef struct {
+    Obj obj;
+    ObjFunction *fun;
+    ObjUpvalue **upvalues;
+    size_t upvalue_count;
+} ObjClosure;
+
 #define OBJ_TYPE(value)     (AS_OBJ(value)->type)
 
 static inline bool obj_is_type(Value value, ObjType type)
@@ -49,16 +66,20 @@ static inline bool obj_is_type(Value value, ObjType type)
 #define IS_STRING(value)    obj_is_type((value), OBJ_STRING)
 #define IS_FUNCTION(value)  obj_is_type((value), OBJ_FUNCTION)
 #define IS_NATIVE(value)    obj_is_type((value), OBJ_NATIVE)
+#define IS_CLOSURE(value)   obj_is_type((value), OBJ_CLOSURE)
 
 #define AS_STRING(value)    ((ObjString *) AS_OBJ(value))
 #define AS_CSTRING(value)   (((ObjString *) AS_OBJ(value))->data)
 #define AS_FUNCTION(value)  ((ObjFunction *) AS_OBJ(value))
 #define AS_NATIVE(value)    (((ObjNative *) AS_OBJ(value))->fun)
+#define AS_CLOSURE(value)   ((ObjClosure *) AS_OBJ(value))
 
 ObjString *obj_copy_string(const char *str, size_t len);
 ObjString *obj_take_string(char *data, size_t len);
 ObjFunction *obj_make_fun();
 ObjNative *obj_make_native(NativeFn fun, const char *name);
+ObjClosure *obj_make_closure(ObjFunction *fun);
+ObjUpvalue *obj_make_upvalue(Value *slot);
 void obj_print(Value value);
 void obj_free_arr(Obj *objects);
 

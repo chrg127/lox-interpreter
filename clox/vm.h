@@ -10,7 +10,7 @@
 #define STACK_MAX 256
 
 typedef struct {
-    ObjFunction *fun;
+    ObjClosure *closure;
     u8 *ip;
     Value *slots;
 } CallFrame;
@@ -22,6 +22,7 @@ typedef struct {
     Value *sp;
     Table globals;
     Table strings;
+    ObjUpvalue *open_upvalues;
     Obj *objects;
     const char *filename;
 } VM;
