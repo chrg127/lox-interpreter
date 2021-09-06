@@ -43,7 +43,13 @@ typedef struct {
     Token name;
     int depth;
     bool is_const;
+    bool is_captured;
 } Local;
+
+typedef struct {
+    u16 index;
+    bool is_local;
+} Upvalue;
 
 typedef enum {
     TYPE_FUNCTION,
@@ -61,7 +67,8 @@ typedef struct Compiler {
     ObjFunction *fun;
     FunctionType type;
     Local locals[LOCAL_COUNT];
-    u32 local_count;
+    int local_count;
+    Upvalue upvalues[LOCAL_COUNT];
     int scope_depth;
     bool inside_loop;
     size_t loop_start;
@@ -189,11 +196,8 @@ static void emit_constant(Value value)
     u16 offset = make_constant(value);
     if (offset < 0xFF)
         emit_two(OP_CONSTANT, offset & 0xFF);
-    else {
-        emit_byte(OP_CONSTANT_LONG);
-        emit_byte( offset       & 0xFF);
-        emit_byte((offset >> 8) & 0xFF);
-    }
+    else
+        emit_u16(OP_CONSTANT_LONG, offset);
 }
 
 static size_t emit_branch(u8 instr)
@@ -232,9 +236,10 @@ static void compiler_init(Compiler *compiler, FunctionType type)
         curr->fun->name = obj_copy_string(parser.prev.start, parser.prev.len);
 
     Local *local = &curr->locals[curr->local_count++];
-    local->depth = 0;
-    local->name.start = "";
-    local->name.len = 0;
+    local->depth       = 0;
+    local->name.start  = "";
+    local->name.len    = 0;
+    local->is_captured = false;
 }
 
 static ObjFunction *compiler_end()
@@ -263,7 +268,10 @@ static void end_scope()
     curr->scope_depth--;
     while (curr->local_count > 0
         && curr->locals[curr->local_count - 1].depth > curr->scope_depth) {
-        emit_byte(OP_POP);
+        if (curr->locals[curr->local_count - 1].is_captured)
+            emit_byte(OP_CLOSE_UPVALUE);
+        else
+            emit_byte(OP_POP);
         curr->local_count--;
     }
 }
@@ -282,14 +290,15 @@ static bool ident_equal(Token *a, Token *b)
 
 static void add_local(Token name, bool is_const)
 {
-    if (curr->local_count == UINT24_COUNT) {
+    if (curr->local_count == LOCAL_COUNT) {
         error("too many local variables in current block");
         return;
     }
     Local *local = &curr->locals[curr->local_count++];
-    local->name = name;
-    local->depth = -1;
-    local->is_const = is_const;
+    local->name        = name;
+    local->depth       = -1;
+    local->is_const    = is_const;
+    local->is_captured = false;
 }
 
 static void declare_var(bool is_const)
@@ -344,6 +353,44 @@ static Local *resolve_local(Compiler *compiler, Token *name)
     return NULL;
 }
 
+static int add_upvalue(Compiler *compiler, u8 index, bool is_local)
+{
+    int upvalue_count = compiler->fun->upvalue_count;
+
+    // check if we already have a similar upvalue
+    for (int i = 0; i < upvalue_count; i++) {
+        Upvalue *upvalue = &compiler->upvalues[i];
+        if (upvalue->index == index && upvalue->is_local == is_local) {
+            return i;
+        }
+    }
+
+    if (upvalue_count == LOCAL_COUNT) {
+        error("too many closure variables in function");
+        return 0;
+    }
+
+    compiler->upvalues[upvalue_count].is_local = is_local;
+    compiler->upvalues[upvalue_count].index    = index;
+    return compiler->fun->upvalue_count++;
+}
+
+static int resolve_upvalue(Compiler *compiler, Token *name)
+{
+    if (compiler->enclosing == NULL)
+        return -1;
+    Local *local = resolve_local(compiler->enclosing, name);
+    if (local) {
+        int index = local - compiler->enclosing->locals;
+        compiler->enclosing->locals[index].is_captured = true;
+        return add_upvalue(compiler, (u8)index, true);
+    }
+    int upvalue = resolve_upvalue(compiler->enclosing, name);
+    if (upvalue != -1)
+        return add_upvalue(compiler, (u8) upvalue, false);
+    return -1;
+}
+
 
 
 /* parser */
@@ -394,7 +441,12 @@ static void function(FunctionType type)
     block();
 
     ObjFunction *fun = compiler_end();
-    emit_constant(VALUE_MKOBJ(fun));
+
+    emit_u16(OP_CLOSURE, make_constant(VALUE_MKOBJ(fun)));
+
+    for (size_t i = 0; i < fun->upvalue_count; i++) {
+        emit_u16((u8)compiler.upvalues[i].is_local, compiler.upvalues[i].index);
+    }
 }
 
 static void fun_decl()
@@ -740,17 +792,21 @@ static void named_var(Token name, bool can_assign)
     u8 getop, setop;
     bool is_const;
     Local *local = resolve_local(curr, &name);
-    u16 arg;
+    int arg;
 
     if (local) {
-        arg = local - curr->locals;
-        getop = OP_GET_LOCAL;
-        setop = OP_SET_LOCAL;
+        arg      = local - curr->locals;
+        getop    = OP_GET_LOCAL;
+        setop    = OP_SET_LOCAL;
         is_const = local->is_const;
+    } else if (arg = resolve_upvalue(curr, &name), arg != -1) {
+        getop    = OP_GET_UPVALUE;
+        setop    = OP_SET_UPVALUE;
+        is_const = false;
     } else {
-        arg = make_ident_constant(&name);
-        getop = OP_GET_GLOBAL;
-        setop = OP_SET_GLOBAL;
+        arg      = make_ident_constant(&name);
+        getop    = OP_GET_GLOBAL;
+        setop    = OP_SET_GLOBAL;
         Value v;
         is_const = table_lookup(&global_consts, token_to_string(&name), &v);
     }

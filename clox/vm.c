@@ -60,13 +60,14 @@ static void reset_stack()
     vm.stack = ALLOCATE(Value, STACK_MAX);
     vm.sp = vm.stack;
     vm.frame_size = 0;
+    vm.open_upvalues = NULL;
 }
 
 static void v_runtime_error(const char *fmt, va_list args)
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
-    size_t offset = vm.ip - frame->fun->chunk.code - 1;
-    int line = chunk_get_line(&frame->fun->chunk, offset);
+    size_t offset = vm.ip - frame->closure->fun->chunk.code - 1;
+    int line = chunk_get_line(&frame->closure->fun->chunk, offset);
     fprintf(stderr, "%s:%d: runtime error: ", vm.filename, line);
 
     vfprintf(stderr, fmt, args);
@@ -78,7 +79,7 @@ static void v_runtime_error(const char *fmt, va_list args)
     fprintf(stderr, "traceback:\n");
     for (int i = vm.frame_size - 1; i >= 0; i--) {
         CallFrame *frame = &vm.frames[i];
-        ObjFunction *fun = frame->fun;
+        ObjFunction *fun = frame->closure->fun;
         size_t offset = frame->ip - fun->chunk.code - 1;
         fprintf(stderr, "%s:%ld: in ", vm.filename, chunk_get_line(&fun->chunk, offset));
         if (fun->name == NULL)
@@ -107,10 +108,11 @@ void runtime_error(const char *fmt, ...)
     va_end(args);
 }
 
-static bool call(ObjFunction *fun, u8 argc)
+static bool call(ObjClosure *closure, u8 argc)
 {
-    if (argc != fun->arity) {
-        runtime_error("expected %d arguments, got %d", fun->arity, argc);
+    if (argc != closure->fun->arity) {
+        runtime_error("expected %d arguments, got %d",
+            closure->fun->arity, argc);
         return false;
     }
     if (vm.frame_size == FRAMES_MAX) {
@@ -118,8 +120,8 @@ static bool call(ObjFunction *fun, u8 argc)
         return false;
     }
     CallFrame *frame = &vm.frames[vm.frame_size++];
-    frame->fun   = fun;
-    frame->ip    = fun->chunk.code;
+    frame->closure = closure;
+    frame->ip    = closure->fun->chunk.code;
     frame->slots = vm.sp - argc - 1;
     return true;
 }
@@ -128,8 +130,8 @@ static bool call_value(Value callee, u8 argc)
 {
     if (IS_OBJ(callee)) {
         switch (OBJ_TYPE(callee)) {
-        case OBJ_FUNCTION:
-            return call(AS_FUNCTION(callee), argc);
+        // case OBJ_FUNCTION:
+        //     return call(AS_FUNCTION(callee), argc);
         case OBJ_NATIVE: {
             ObjNative *obj = AS_NATIVE_OBJ(callee);
             if (obj->arity != argc) {
@@ -144,6 +146,8 @@ static bool call_value(Value callee, u8 argc)
             vm.sp -= argc + 1;
             push(result.value);
             return true;
+        case OBJ_CLOSURE:
+            return call(AS_CLOSURE(callee), argc);
         }
         default:
             break;
@@ -151,6 +155,35 @@ static bool call_value(Value callee, u8 argc)
     }
     runtime_error("attempt to call non-callable object");
     return false;
+}
+
+static ObjUpvalue *capture_upvalue(Value *local)
+{
+    ObjUpvalue *prev = NULL;
+    ObjUpvalue *entry = vm.open_upvalues;
+    while (entry != NULL && entry->location > local) {
+        prev = entry;
+        entry = entry->next;
+    }
+    if (entry != NULL && entry->location == local)
+        return entry;
+    ObjUpvalue *created = obj_make_upvalue(local);
+    created->next = entry;
+    if (prev == NULL)
+        vm.open_upvalues = created;
+    else
+        prev->next = created;
+    return created;
+}
+
+static void close_upvalues(Value *last)
+{
+    while (vm.open_upvalues != NULL && vm.open_upvalues->location >= last) {
+        ObjUpvalue *upvalue = vm.open_upvalues;
+        upvalue->closed   = *upvalue->location;
+        upvalue->location = &upvalue->closed;
+        vm.open_upvalues  = upvalue->next;
+    }
 }
 
 static void define_native(const char *name, NativeFn fun, u8 arity)
@@ -166,11 +199,17 @@ static VMResult run()
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
     vm.ip = frame->ip;
+
 #define READ_BYTE() (*vm.ip++)
 #define READ_SHORT() (vm.ip += 2, (u16)((vm.ip[-1] << 8) | vm.ip[-2]))
-#define READ_CONSTANT()      (frame->fun->chunk.constants.values[READ_BYTE()])
-#define READ_CONSTANT_LONG() (frame->fun->chunk.constants.values[READ_SHORT()])
+#define READ_CONSTANT()      (frame->closure->fun->chunk.constants.values[READ_BYTE()])
+#define READ_CONSTANT_LONG() (frame->closure->fun->chunk.constants.values[READ_SHORT()])
 #define READ_STRING() AS_STRING(READ_CONSTANT_LONG())
+// #define READ_BYTE() (*frame->ip++)
+// #define READ_SHORT() (frame->ip += 2, (u16)((frame->ip[-2] << 8) | frame->ip[-1]))
+// #define READ_CONSTANT() (frame->closure->fun->chunk.constants.values[READ_BYTE()])
+// #define READ_STRING() AS_STRING(READ_CONSTANT())
+
 #define BINARY_OP(value_type, op) \
     do {                    \
         if (!IS_NUM(peek(0)) || !IS_NUM(peek(1))) { \
@@ -183,11 +222,16 @@ static VMResult run()
     } while (0)
 
     for (;;) {
+
 #ifdef DEBUG_TRACE_EXECUTION
         print_stack();
-        disassemble_opcode(&frame->fun->chunk, (size_t)(vm.ip - frame->fun->chunk.code));
+        disassemble_opcode(
+            &frame->closure->fun->chunk,
+            (size_t)(vm.ip - frame->closure->fun->chunk.code)
+        );
         printf("\n");
 #endif
+
         u8 instr = READ_BYTE();
         switch (instr) {
         case OP_CONSTANT: {
@@ -238,6 +282,16 @@ static VMResult run()
         case OP_SET_LOCAL: {
             u16 slot = READ_SHORT();
             frame->slots[slot] = peek(0);
+            break;
+        }
+        case OP_GET_UPVALUE: {
+            u16 slot = READ_SHORT();
+            push(*frame->closure->upvalues[slot]->location);
+            break;
+        }
+        case OP_SET_UPVALUE: {
+            u16 slot = READ_SHORT();
+            *frame->closure->upvalues[slot]->location = peek(0);
             break;
         }
         case OP_EQ: {
@@ -305,6 +359,7 @@ static VMResult run()
         }
         case OP_RETURN: {
             Value result = pop();
+            close_upvalues(frame->slots);
             vm.frame_size--;
             if (vm.frame_size == 0) {
                 pop();
@@ -316,6 +371,22 @@ static VMResult run()
             vm.ip = frame->ip;
             break;
         }
+        case OP_CLOSURE: {
+            ObjFunction *fun = AS_FUNCTION(READ_CONSTANT_LONG());
+            ObjClosure *closure = obj_make_closure(fun);
+            push(VALUE_MKOBJ(closure));
+            for (size_t i = 0; i < closure->upvalue_count; i++) {
+                u8 is_local = READ_BYTE();
+                u16 index    = READ_SHORT();
+                closure->upvalues[i] = is_local ? capture_upvalue(frame->slots + index)
+                                                : frame->closure->upvalues[index];
+            }
+            break;
+        }
+        case OP_CLOSE_UPVALUE:
+            close_upvalues(vm.sp - 1);
+            pop();
+            break;
         default:
             runtime_error("unknown opcode: %d", instr);
             return VM_RUNTIME_ERROR;
@@ -352,7 +423,10 @@ VMResult vm_interpret(const char *src, const char *filename)
     if (!fun)
         return VM_COMPILE_ERROR;
     push(VALUE_MKOBJ(fun));
-    call(fun, 0);
+    ObjClosure *closure = obj_make_closure(fun);
+    pop();
+    push(VALUE_MKOBJ(closure));
+    call(closure, 0);
     vm.filename = filename;
 
 #ifdef DEBUG_TRACE_EXECUTION

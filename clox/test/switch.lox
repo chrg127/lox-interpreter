@@ -1,0 +1,6 @@
+var a = 1;
+switch (a) {
+case 7: print "hello";
+case 1: print "hi"; print "ohay";
+default: print "test"; print "default";
+}

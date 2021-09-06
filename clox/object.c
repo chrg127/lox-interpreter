@@ -66,6 +66,7 @@ ObjFunction *obj_make_fun()
 {
     ObjFunction *fun = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
     fun->arity = 0;
+    fun->upvalue_count = 0;
     fun->name = NULL;
     chunk_init(&fun->chunk);
     return fun;
@@ -78,6 +79,27 @@ ObjNative *obj_make_native(NativeFn fun, const char *name, u8 arity)
     native->name = name;
     native->arity = arity;
     return native;
+}
+
+ObjClosure *obj_make_closure(ObjFunction *fun)
+{
+    ObjUpvalue **upvalues = ALLOCATE(ObjUpvalue *, fun->upvalue_count);
+    for (size_t i = 0; i < fun->upvalue_count; i++)
+        upvalues[i] = NULL;
+    ObjClosure *closure = ALLOCATE_OBJ(ObjClosure, OBJ_CLOSURE);
+    closure->fun           = fun;
+    closure->upvalues      = upvalues;
+    closure->upvalue_count = fun->upvalue_count;
+    return closure;
+}
+
+ObjUpvalue *obj_make_upvalue(Value *slot)
+{
+    ObjUpvalue *upvalue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
+    upvalue->location = slot;
+    upvalue->closed   = VALUE_MKNIL();
+    upvalue->next     = NULL;
+    return upvalue;
 }
 
 static void print_function(ObjFunction *fun)
@@ -95,6 +117,8 @@ void obj_print(Value value)
     case OBJ_STRING: printf("\"%.*s\"", (int) AS_STRING(value)->len, AS_STRING(value)->data); break;
     case OBJ_FUNCTION: print_function(AS_FUNCTION(value)); break;
     case OBJ_NATIVE: printf("<native fn '%s'>", ((ObjNative *)AS_OBJ(value))->name); break;
+    case OBJ_CLOSURE: print_function(AS_CLOSURE(value)->fun); break;
+    case OBJ_UPVALUE: printf("upvalue"); break;
     }
 }
 
@@ -115,6 +139,15 @@ static void free_obj(Obj *obj)
     }
     case OBJ_NATIVE:
         FREE(ObjNative, obj);
+        break;
+    case OBJ_CLOSURE: {
+        ObjClosure *closure = (ObjClosure *)obj;
+        FREE_ARRAY(ObjUpvalue *, closure->upvalues, closure->upvalue_count);
+        FREE(ObjClosure, obj);
+        break;
+    }
+    case OBJ_UPVALUE:
+        FREE(ObjUpvalue, obj);
         break;
     }
 }
