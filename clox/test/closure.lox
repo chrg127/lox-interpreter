@@ -14,5 +14,5 @@ fun outer2() {
     }
     return inner;
 }
-var closure = outer();
+var closure = outer2();
 closure();
