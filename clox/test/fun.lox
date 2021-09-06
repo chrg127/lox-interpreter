@@ -1,0 +1,7 @@
+fun a(x, y)
+{
+    var b = x + y;
+    return b +1;
+}
+
+print a(1, 2);
