@@ -1,0 +1,25 @@
+fun make_vec2(x1, y1)
+{
+    var x = x1;
+    var y = y1;
+
+    fun getx() { return x; }
+    fun gety() { return y; }
+    fun add(v) { return make_vec2(x + v("x"), y + v("y")); }
+    fun dispatch(method)
+    {
+             if (method == "x")   return getx;
+        else if (method == "y")   return gety;
+        else if (method == "add") return add;
+        else {
+            print "warning: dispatch() error";
+            return nil;
+        }
+    }
+}
+
+var v1 = make_vec2(4, 5);
+var v2 = make_vec2(3, 8);
+var v3 = v1("add")(v2);
+print "v3's x = " + v3("x");
+print "v3's y = " + v3("y");

@@ -16,3 +16,19 @@ fun outer2() {
 }
 var closure = outer2();
 closure();
+
+var c1 = nil;
+var c2 = nil;
+
+for (var i = 0; i < 2; i = i+1) {
+    fun a() {
+        print i;
+    }
+    if (c1 == nil)
+        c1 = a;
+    else
+        c2 = a;
+}
+
+c1();
+c2();
