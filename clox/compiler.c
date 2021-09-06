@@ -319,10 +319,11 @@ static int resolve_local(Compiler *compiler, Token *name)
     // backwards walk to find a variable with the same name as *name
     for (int i = compiler->local_count - 1; i >= 0; i--) {
         Local *local = &compiler->locals[i];
-        if (local->depth == -1)
-            error("can't read local variable in its own initializer");
-        if (ident_equal(name, &local->name))
+        if (ident_equal(name, &local->name)) {
+            if (local->depth == -1)
+                error("can't read local variable in its own initializer");
             return i;
+        }
     }
     return -1;
 }
