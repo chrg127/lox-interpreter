@@ -181,12 +181,14 @@ static Value clock_native(int argc, Value *argv)
 static VMResult run()
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
+
 #define READ_BYTE() (*frame->ip++)
 #define READ_SHORT() \
     (frame->ip += 2, (u16)((frame->ip[-2] << 8) | frame->ip[-1]))
 #define READ_CONSTANT() \
     (frame->closure->fun->chunk.constants.values[READ_BYTE()])
 #define READ_STRING() AS_STRING(READ_CONSTANT())
+
 #define BINARY_OP(value_type, op) \
     do {                    \
         if (!IS_NUM(peek(0)) || !IS_NUM(peek(1))) { \
@@ -199,6 +201,7 @@ static VMResult run()
     } while (0)
 
     for (;;) {
+
 #ifdef DEBUG_TRACE_EXECUTION
         print_stack();
         disassemble_opcode(
@@ -207,6 +210,7 @@ static VMResult run()
         );
         printf("\n");
 #endif
+
         u8 instr = READ_BYTE();
         switch (instr) {
         case OP_CONSTANT: {
@@ -216,9 +220,8 @@ static VMResult run()
         }
         case OP_NIL:    push(VALUE_MKNIL());       break;
         case OP_TRUE:   push(VALUE_MKBOOL(true));  break;
-        case OP_FALSE:  push(VALUE_MKBOOL(false));     break;
-        // case OP_PUSH:
-        case OP_POP:    pop(); break;
+        case OP_FALSE:  push(VALUE_MKBOOL(false)); break;
+        case OP_POP:    pop();                     break;
         case OP_DEFINE_GLOBAL: {
             ObjString *name = READ_STRING();
             table_install(&vm.globals, name, peek(0));

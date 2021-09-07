@@ -13,5 +13,6 @@ typedef int32_t  i32;
 typedef int64_t  i64;
 
 #define UINT8_COUNT (UINT8_MAX + 1)
+#define TOU16(b1, b2) ((b2) << 8 | (b1))
 
 #endif

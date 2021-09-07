@@ -4,16 +4,16 @@
 #include "value.h"
 #include "object.h"
 
-static int simple_instr(const char *name, size_t offset)
+static size_t simple_instr(const char *name, size_t offset)
 {
     printf("%s", name);
     return offset + 1;
 }
 
-static int const_instr(const char *name, Chunk *chunk, size_t offset)
+static size_t const_instr(const char *name, Chunk *chunk, size_t offset)
 {
     u8 index = chunk->code[offset + 1];
-    printf("%s #%d '", name, index);
+    printf("%s %02d '", name, index);
     value_print(chunk->constants.values[index]);
     printf("'");
     return offset + 2;
@@ -22,22 +22,38 @@ static int const_instr(const char *name, Chunk *chunk, size_t offset)
 static size_t byte_instr(const char *name, Chunk *chunk, size_t offset)
 {
     u8 slot = chunk->code[offset+1];
-    printf("%s #%d", name, slot);
+    printf("%s %02d", name, slot);
     return offset + 2;
 }
 
 static size_t jump_instr(const char *name, int sign, Chunk *chunk, size_t offset)
 {
-    u16 branch = (u16)(chunk->code[offset + 1] << 8);
-    branch |= chunk->code[offset + 2];
+    u16 branch = TOU16(chunk->code[offset + 1], chunk->code[offset + 2]);
     printf("%s %ld -> %ld", name, offset, offset + 3 + sign * branch);
     return offset + 3;
 }
 
+static size_t closure_instr(const char *name, Chunk *chunk, size_t offset)
+{
+    offset++;
+    u8 constant = chunk->code[offset++];
+    printf("%s %d '", "clo", constant);
+    value_print(chunk->constants.values[constant]);
+    printf("'");
+
+    ObjFunction *fun = AS_FUNCTION(chunk->constants.values[constant]);
+    for (size_t j = 0; j < fun->upvalue_count; j++) {
+        int is_local = chunk->code[offset++];
+        int index    = chunk->code[offset++];
+        printf("\n%04ld:        | %s %d", offset - 2, is_local ? "local" : "upvalue", index);
+    }
+
+    return offset;
+}
+
 void disassemble(Chunk *chunk, const char *name)
 {
-    printf("== %s ==\n", name);
-
+    printf("=== %s ===\n", name);
     for (size_t i = 0; i < chunk->size; ) {
         i = disassemble_opcode(chunk, i);
         printf("\n");
@@ -81,23 +97,8 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_BRANCH_BACK:    return jump_instr("bbw", -1, chunk, offset);
     case OP_CALL:           return byte_instr("cal", chunk, offset);
     case OP_RETURN:         return simple_instr("ret", offset);
-    case OP_CLOSURE: {
-        offset++;
-        u8 constant = chunk->code[offset++];
-        printf("%s %d '", "clo", constant);
-        value_print(chunk->constants.values[constant]);
-        printf("'");
-
-        ObjFunction *fun = AS_FUNCTION(chunk->constants.values[constant]);
-        for (size_t j = 0; j < fun->upvalue_count; j++) {
-            int is_local = chunk->code[offset++];
-            int index    = chunk->code[offset++];
-            printf("\n%04ld:        | %s %d", offset - 2, is_local ? "local" : "upvalue", index);
-        }
-        return offset;
-    }
-    case OP_CLOSE_UPVALUE:
-        return simple_instr("clu", offset);
+    case OP_CLOSURE:        return closure_instr("clo", chunk, offset);
+    case OP_CLOSE_UPVALUE:  return simple_instr("clu", offset);
     default:
         printf("[unknown] [%d]", instr);
         return offset + 1;
