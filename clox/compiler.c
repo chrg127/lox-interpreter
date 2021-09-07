@@ -443,11 +443,14 @@ static void function(FunctionType type)
 
     ObjFunction *fun = compiler_end();
 
-    emit_u16(OP_CLOSURE, make_constant(VALUE_MKOBJ(fun)));
-
-    for (size_t i = 0; i < fun->upvalue_count; i++) {
-        emit_u16((u8)compiler.upvalues[i].is_local, compiler.upvalues[i].index);
+    if (fun->upvalue_count == 0) {
+        emit_constant(VALUE_MKOBJ(fun));
+        return;
     }
+
+    emit_u16(OP_CLOSURE, make_constant(VALUE_MKOBJ(fun)));
+    for (size_t i = 0; i < fun->upvalue_count; i++)
+        emit_u16((u8)compiler.upvalues[i].is_local, compiler.upvalues[i].index);
 }
 
 static void fun_decl()
