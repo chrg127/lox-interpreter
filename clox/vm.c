@@ -205,10 +205,6 @@ static VMResult run()
 #define READ_CONSTANT()      (frame->closure->fun->chunk.constants.values[READ_BYTE()])
 #define READ_CONSTANT_LONG() (frame->closure->fun->chunk.constants.values[READ_SHORT()])
 #define READ_STRING() AS_STRING(READ_CONSTANT_LONG())
-// #define READ_BYTE() (*frame->ip++)
-// #define READ_SHORT() (frame->ip += 2, (u16)((frame->ip[-2] << 8) | frame->ip[-1]))
-// #define READ_CONSTANT() (frame->closure->fun->chunk.constants.values[READ_BYTE()])
-// #define READ_STRING() AS_STRING(READ_CONSTANT())
 
 #define BINARY_OP(value_type, op) \
     do {                    \
@@ -246,9 +242,8 @@ static VMResult run()
         }
         case OP_NIL:    push(VALUE_MKNIL());       break;
         case OP_TRUE:   push(VALUE_MKBOOL(true));  break;
-        case OP_FALSE:  push(VALUE_MKBOOL(false));     break;
-        // case OP_PUSH:
-        case OP_POP:    pop(); break;
+        case OP_FALSE:  push(VALUE_MKBOOL(false)); break;
+        case OP_POP:    pop();                     break;
         case OP_DEFINE_GLOBAL: {
             ObjString *name = READ_STRING();
             table_install(&vm.globals, name, peek(0));
