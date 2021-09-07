@@ -408,6 +408,7 @@ void vm_init()
     table_init(&vm.strings);
     define_native("clock", native_clock, 0);
     define_native("sqrt",  native_sqrt,  1);
+    define_native("str", native_tostr, 1);
 }
 
 void vm_free()

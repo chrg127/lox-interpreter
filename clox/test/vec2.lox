@@ -5,21 +5,40 @@ fun make_vec2(x1, y1)
 
     fun getx() { return x; }
     fun gety() { return y; }
-    fun add(v) { return make_vec2(x + v("x"), y + v("y")); }
+
+    fun add(v)
+    {
+        var vx = v("x")();
+        var vy = v("y")();
+        var newx = x + vx;
+        var newy = y + vy;
+        return make_vec2(newx, newy);
+        // return make_vec2(x + v("x")(), y + v("y")()); }
+    }
+
+    fun prt(name)
+    {
+        print name + ": x = " + str(x) + ", y = " + str(y);
+    }
+
     fun dispatch(method)
     {
              if (method == "x")   return getx;
         else if (method == "y")   return gety;
         else if (method == "add") return add;
+        else if (method == "prt") return prt;
         else {
-            print "warning: dispatch() error";
+            print "warning: dispatch() error: passed " + method;
             return nil;
         }
     }
+
+    return dispatch;
 }
 
 var v1 = make_vec2(4, 5);
+v1("prt")("v1");
 var v2 = make_vec2(3, 8);
+v2("prt")("v2");
 var v3 = v1("add")(v2);
-print "v3's x = " + v3("x");
-print "v3's y = " + v3("y");
+v3("prt")("v3");

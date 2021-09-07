@@ -56,5 +56,6 @@ VECTOR_DECLARE_FREE(ValueArray, Value, valuearray);
 
 void value_print(Value value);
 bool value_equal(Value a, Value b);
+ObjString *value_tostring(Value value);
 
 #endif

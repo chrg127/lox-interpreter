@@ -16,5 +16,6 @@ typedef NativeResult (*NativeFn)(int argc, Value *argv);
 
 NativeResult native_clock(int argc, Value *argv);
 NativeResult native_sqrt(int argc, Value *argv);
+NativeResult native_tostr(int argc, Value *argv);
 
 #endif

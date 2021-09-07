@@ -86,5 +86,6 @@ void obj_print(Value value);
 void obj_free_arr(Obj *objects);
 u32 obj_hash(Obj *obj);
 bool obj_strcmp(Value a, Value b);
+ObjString *obj_tostring(Value value);
 
 #endif

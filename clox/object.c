@@ -114,7 +114,7 @@ static void print_function(ObjFunction *fun)
 void obj_print(Value value)
 {
     switch (OBJ_TYPE(value)) {
-    case OBJ_STRING: printf("\"%.*s\"", (int) AS_STRING(value)->len, AS_STRING(value)->data); break;
+    case OBJ_STRING: printf("%.*s", (int) AS_STRING(value)->len, AS_STRING(value)->data); break;
     case OBJ_FUNCTION: print_function(AS_FUNCTION(value)); break;
     case OBJ_NATIVE: printf("<native fn '%s'>", ((ObjNative *)AS_OBJ(value))->name); break;
     case OBJ_CLOSURE: print_function(AS_CLOSURE(value)->fun); break;
@@ -172,5 +172,26 @@ u32 obj_hash(Obj *obj)
         return hash_string(str, strlen(str));
     }
     default: return 0;
+    }
+}
+
+static ObjString *fun_tostring(ObjFunction *fun)
+{
+    return fun->name == NULL ? obj_copy_string("<script>", 8)
+                             : fun->name;
+}
+
+ObjString *obj_tostring(Value value)
+{
+    switch (AS_OBJ(value)->type) {
+    case OBJ_STRING:   return AS_STRING(value);
+    case OBJ_FUNCTION: return fun_tostring(AS_FUNCTION(value));
+    case OBJ_NATIVE: {
+        const char *name = ((ObjNative *)AS_OBJ(value))->name;
+        return obj_copy_string(name, strlen(name));
+    }
+    case OBJ_CLOSURE:  return fun_tostring(AS_CLOSURE(value)->fun);
+    case OBJ_UPVALUE:  return obj_copy_string("upvalue", 7);
+    default: return NULL; // unreachable
     }
 }

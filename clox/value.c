@@ -33,6 +33,23 @@ bool value_equal(Value a, Value b)
     }
 }
 
+ObjString *value_tostring(Value value)
+{
+    switch (value.type) {
+    case VAL_NUM: {
+        double num = AS_NUM(value);
+        int len = snprintf(NULL, 0, "%f", num);
+        char *output = ALLOCATE(char, len);
+        snprintf(output, len, "%f", num);
+        return obj_take_string(output, len-1);
+    }
+    case VAL_BOOL: return AS_BOOL(value) ? obj_copy_string("true", 4) : obj_copy_string("false", 5);
+    case VAL_NIL:  return obj_copy_string("nil", 3);
+    case VAL_OBJ:  return obj_tostring(value);
+    default: return NULL; // unreachable
+    }
+}
+
 u32 hash_num(double n)
 {
     return n;
