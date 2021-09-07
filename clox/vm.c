@@ -205,10 +205,6 @@ static VMResult run()
 #define READ_CONSTANT()      (frame->closure->fun->chunk.constants.values[READ_BYTE()])
 #define READ_CONSTANT_LONG() (frame->closure->fun->chunk.constants.values[READ_SHORT()])
 #define READ_STRING() AS_STRING(READ_CONSTANT_LONG())
-// #define READ_BYTE() (*frame->ip++)
-// #define READ_SHORT() (frame->ip += 2, (u16)((frame->ip[-2] << 8) | frame->ip[-1]))
-// #define READ_CONSTANT() (frame->closure->fun->chunk.constants.values[READ_BYTE()])
-// #define READ_STRING() AS_STRING(READ_CONSTANT())
 
 #define BINARY_OP(value_type, op) \
     do {                    \

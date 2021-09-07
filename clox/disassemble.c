@@ -4,27 +4,25 @@
 #include "value.h"
 #include "object.h"
 
-static int simple_instr(const char *name, size_t offset)
+static size_t simple_instr(const char *name, size_t offset)
 {
     printf("%s", name);
     return offset + 1;
 }
 
-static int const_instr(const char *name, Chunk *chunk, size_t offset)
+static size_t const_instr(const char *name, Chunk *chunk, size_t offset)
 {
     u8 index = chunk->code[offset + 1];
-    printf("%s %d '", name, index);
+    printf("%s %03d '", name, index);
     value_print(chunk->constants.values[index]);
     printf("'");
     return offset + 2;
 }
 
-static int const_long_instr(const char *name, Chunk *chunk, size_t offset)
+static size_t const_long_instr(const char *name, Chunk *chunk, size_t offset)
 {
-    u8 b1 = chunk->code[offset + 1];
-    u8 b2 = chunk->code[offset + 2];
-    u16 index = b2 << 8 | b1;
-    printf("%s %d %d (%d) '", name, b1, b2, index);
+    u16 index = TOU16(chunk->code[offset + 1], chunk->code[offset + 2]);
+    printf("%s %05d '", name, index);
     value_print(chunk->constants.values[index]);
     printf("'");
     return offset + 3;
@@ -33,42 +31,49 @@ static int const_long_instr(const char *name, Chunk *chunk, size_t offset)
 static size_t byte_instr(const char *name, Chunk *chunk, size_t offset)
 {
     u8 slot = chunk->code[offset+1];
-    printf("%s %d", name, slot);
+    printf("%s %03d", name, slot);
     return offset + 2;
 }
 
 static size_t byte2_instr(const char *name, Chunk *chunk, size_t offset)
 {
-    u8 b1 = chunk->code[offset+1];
-    u8 b2 = chunk->code[offset+2];
-    u16 slot = b2 << 8 | b1;
-    printf("%s %d %d (%d)", name, b1, b2, slot);
+    u16 slot = TOU16(chunk->code[offset+1], chunk->code[offset+2]);
+    printf("%s %05d", name, slot);
     return offset + 3;
-}
-
-static size_t byte3_instr(const char *name, Chunk *chunk, size_t offset)
-{
-    u8 b1 = chunk->code[offset+1];
-    u8 b2 = chunk->code[offset+2];
-    u8 b3 = chunk->code[offset+3];
-    u32 slot = b3 << 16 | b2 << 8 | b1;
-    printf("%s %d %d %d (%d)", name, b1, b2, b3, slot);
-    return offset + 4;
 }
 
 static size_t jump_instr(const char *name, int sign, Chunk *chunk, size_t offset)
 {
-    u8 b1 = chunk->code[offset + 1];
-    u8 b2 = chunk->code[offset + 2];
-    u16 branch = b2 << 8 | b1;
-    printf("%s %d %d (%ld -> %ld)", name, b1, b2, offset, offset + 3 + sign * branch);
+    u16 branch = TOU16(chunk->code[offset + 1], chunk->code[offset + 2]);
+    printf("%s %ld -> %ld", name, offset, offset + 3 + sign * branch);
     return offset + 3;
+}
+
+static size_t closure_instr(const char *name, Chunk *chunk, size_t offset)
+{
+    offset++;
+    u8 b1 = chunk->code[offset++];
+    u8 b2 = chunk->code[offset++];
+    u16 constant = TOU16(b1, b2);
+    printf("%s %d '", "clo", constant);
+    value_print(chunk->constants.values[constant]);
+    printf("'");
+
+    ObjFunction *fun = AS_FUNCTION(chunk->constants.values[constant]);
+    for (size_t j = 0; j < fun->upvalue_count; j++) {
+        int is_local = chunk->code[offset++];
+        u8 b1 = chunk->code[offset++];
+        u8 b2 = chunk->code[offset++];
+        u16 index    = TOU16(b1, b2);
+        printf("\n%04ld:        | %s %d", offset - 2, is_local ? "local" : "upvalue", index);
+    }
+
+    return offset;
 }
 
 void disassemble(Chunk *chunk, const char *name)
 {
-    printf("== %s ==\n", name);
-
+    printf("=== %s ===\n", name);
     for (size_t i = 0; i < chunk->size; ) {
         i = disassemble_opcode(chunk, i);
         printf("\n");
@@ -114,26 +119,8 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_BRANCH_BACK:    return jump_instr("bbw", -1, chunk, offset);
     case OP_CALL:           return byte_instr("cal", chunk, offset);
     case OP_RETURN:         return simple_instr("ret", offset);
-    case OP_CLOSURE: {
-        offset++;
-        u8 b1 = chunk->code[offset++];
-        u8 b2 = chunk->code[offset++];
-        u16 constant = TOU16(b1, b2);
-        printf("%s %d '", "clo", constant);
-        value_print(chunk->constants.values[constant]);
-        printf("'");
-
-        ObjFunction *fun = AS_FUNCTION(chunk->constants.values[constant]);
-        for (size_t j = 0; j < fun->upvalue_count; j++) {
-            int is_local = chunk->code[offset++];
-            u8 b1 = chunk->code[offset++];
-            u8 b2 = chunk->code[offset++];
-            u16 index    = TOU16(b1, b2);
-            printf("\n%04ld:        | %s %d", offset - 2, is_local ? "local" : "upvalue", index);
-        }
-        return offset;
-    }
-    case OP_CLOSE_UPVALUE: return simple_instr("clu", offset);
+    case OP_CLOSURE:        return closure_instr("clo", chunk, offset);
+    case OP_CLOSE_UPVALUE:  return simple_instr("clu", offset);
     default:
         printf("[unknown] [%d]", instr);
         return offset + 1;
