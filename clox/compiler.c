@@ -4,11 +4,18 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
+#include "chunk.h"
 #include "scanner.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "disassemble.h"
 #endif
+
+#define LOCAL_COUNT     UINT8_COUNT
+#define UPVALUE_COUNT   LOCAL_COUNT
+#define GLOBAL_COUNT    UINT8_COUNT
+#define CONSTANT_COUNT  UINT8_MAX
+#define CONSTANT_COUNT  UINT8_MAX
 
 typedef enum {
     PREC_NONE,
@@ -50,11 +57,11 @@ typedef enum {
 typedef struct Compiler {
     ObjFunction *fun;
     FunctionType type;
-    Local locals[UINT8_COUNT];
     int local_count;
-    Upvalue upvalues[UINT8_COUNT];
     int scope_depth;
     struct Compiler *enclosing;
+    Local locals[LOCAL_COUNT];
+    Upvalue upvalues[UPVALUE_COUNT]; // count for upvalues is kept in fun
 } Compiler;
 
 Compiler *curr = NULL;
@@ -100,10 +107,10 @@ static void synchronize()
             return;
         switch (parser.curr.type) {
         case TOKEN_CLASS: case TOKEN_FUN: case TOKEN_VAR:
-        case TOKEN_FOR: case TOKEN_IF: case TOKEN_WHILE:
+        case TOKEN_FOR:   case TOKEN_IF:  case TOKEN_WHILE:
         case TOKEN_PRINT: case TOKEN_RETURN:
             return;
-        default:
+        default: // this is to silence switch warnings
             ;
         }
         advance();
@@ -114,10 +121,7 @@ static void synchronize()
 
 /* utilities */
 
-static Chunk *curr_chunk()
-{
-    return &curr->fun->chunk;
-}
+static Chunk *curr_chunk() { return &curr->fun->chunk; }
 
 static void advance()
 {
@@ -169,8 +173,8 @@ static void emit_return()           { emit_two(OP_NIL, OP_RETURN); }
 
 static u8 make_constant(Value value)
 {
-    int constant = chunk_add_const(curr_chunk(), value);
-    if (constant > UINT8_MAX) {
+    size_t constant = chunk_add_const(curr_chunk(), value);
+    if (constant > CONSTANT_COUNT) {
         error("too many constants in one chunk");
         return 0;
     }
@@ -240,16 +244,12 @@ static ObjFunction *compiler_end()
 
 /* scope and variable handling */
 
-static void begin_scope()
-{
-    curr->scope_depth++;
-}
+static void begin_scope() { curr->scope_depth++; }
 
 static void end_scope()
 {
     curr->scope_depth--;
-    while (curr->local_count > 0
-        && curr->locals[curr->local_count - 1].depth > curr->scope_depth) {
+    while (curr->local_count > 0 && curr->locals[curr->local_count - 1].depth > curr->scope_depth) {
         if (curr->locals[curr->local_count - 1].is_captured)
             emit_byte(OP_CLOSE_UPVALUE);
         else
@@ -265,18 +265,15 @@ static u8 make_ident_constant(Token *name)
 
 static bool ident_equal(Token *a, Token *b)
 {
-    if (a->len != b->len)
-        return false;
-    return memcmp(a->start, b->start, a->len) == 0;
+    return a->len == b->len && memcmp(a->start, b->start, a->len) == 0;
 }
 
 static void add_local(Token name)
 {
-    if (curr->local_count == UINT8_COUNT) {
+    if (curr->local_count == LOCAL_COUNT) {
         error("too many local variables in current block");
         return;
     }
-
     Local *local = &curr->locals[curr->local_count++];
     local->name        = name;
     local->depth       = -1;
@@ -285,6 +282,7 @@ static void add_local(Token name)
 
 static void declare_var()
 {
+    // global?
     if (curr->scope_depth == 0)
         return;
     Token *name = &parser.prev;
@@ -330,23 +328,22 @@ static int resolve_local(Compiler *compiler, Token *name)
 
 static int add_upvalue(Compiler *compiler, u8 index, bool is_local)
 {
-    int upvalue_count = compiler->fun->upvalue_count;
+    int count = compiler->fun->upvalue_count;
 
     // check if we already have a similar upvalue
-    for (int i = 0; i < upvalue_count; i++) {
+    for (int i = 0; i < count; i++) {
         Upvalue *upvalue = &compiler->upvalues[i];
-        if (upvalue->index == index && upvalue->is_local == is_local) {
+        if (upvalue->index == index && upvalue->is_local == is_local)
             return i;
-        }
     }
 
-    if (upvalue_count == UINT8_COUNT) {
+    if (count == UPVALUE_COUNT) {
         error("too many closure variables in function");
         return 0;
     }
 
-    compiler->upvalues[upvalue_count].is_local = is_local;
-    compiler->upvalues[upvalue_count].index    = index;
+    compiler->upvalues[count].is_local = is_local;
+    compiler->upvalues[count].index    = index;
     return compiler->fun->upvalue_count++;
 }
 
@@ -415,9 +412,9 @@ static void function(FunctionType type)
     block();
 
     ObjFunction *fun = compiler_end();
-    emit_two(OP_CLOSURE, make_constant(VALUE_MKOBJ(fun)));
 
-    for (size_t i = 0; i < fun->upvalue_count; i++) {
+    emit_two(OP_CLOSURE, make_constant(VALUE_MKOBJ(fun)));
+    for (int i = 0; i < fun->upvalue_count; i++) {
         emit_byte(compiler.upvalues[i].is_local);
         emit_byte(compiler.upvalues[i].index);
     }
@@ -497,12 +494,9 @@ static void for_stmt()
 {
     begin_scope();
     consume(TOKEN_LEFT_PAREN, "expected '(' after 'for'");
-    if (match(TOKEN_SEMICOLON))
-        ;
-    else if (match(TOKEN_VAR))
-        var_decl();
-    else
-        expr_stmt();
+         if (match(TOKEN_SEMICOLON))  ;
+    else if (match(TOKEN_VAR))       var_decl();
+    else                             expr_stmt();
 
     size_t loop_start = curr_chunk()->size;
     size_t exit_offset = 0;
@@ -701,6 +695,7 @@ static void named_var(Token name, bool can_assign)
 {
     u8 getop, setop;
     int arg = resolve_local(curr, &name);
+
     if (arg != -1) {
         getop = OP_GET_LOCAL;
         setop = OP_SET_LOCAL;
@@ -712,6 +707,7 @@ static void named_var(Token name, bool can_assign)
         getop = OP_GET_GLOBAL;
         setop = OP_SET_GLOBAL;
     }
+
     if (can_assign && match(TOKEN_EQ)) {
         expr();
         emit_two(setop, arg);

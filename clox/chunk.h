@@ -39,15 +39,15 @@ typedef enum {
 
 typedef struct {
     u8 *code;
+    int *lines;
     size_t size;
     size_t cap;
     ValueArray constants;
-    int *lines;
 } Chunk;
 
 void chunk_init(Chunk *chunk);
 void chunk_write(Chunk *chunk, u8 byte, int line);
 void chunk_free(Chunk *chunk);
-int chunk_add_const(Chunk *chunk, Value value);
+size_t chunk_add_const(Chunk *chunk, Value value);
 
 #endif

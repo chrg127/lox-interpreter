@@ -7,7 +7,7 @@ _objs_main := chunk.o compiler.o disassemble.o memory.o main.o object.o \
 			  scanner.o table.o value.o vm.o vector.o
 libs :=
 CC := gcc
-CFLAGS := -I. -std=c11 -Wall -Wextra -pipe \
+CFLAGS := -I. -std=c11 -Wall -Wextra -pedantic -pipe \
 		 -Wcast-align -Wcast-qual -Wpointer-arith -Wswitch \
 		 -Wformat=2 -Wmissing-include-dirs -Wno-unused-parameter
 flags_deps = -MMD -MP -MF $(@:.o=.d)
