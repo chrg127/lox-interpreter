@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <string.h>
+#include "chunk.h"
 #include "scanner.h"
 #include "object.h"
 #include "table.h"
@@ -11,10 +13,11 @@
 #include "disassemble.h"
 #endif
 
-#define LOCAL_COUNT  UINT16_COUNT
-#define GLOBAL_COUNT UINT16_COUNT
-#define CONSTANT_MAX UINT16_MAX
-#define JUMP_MAX     UINT16_MAX
+#define LOCAL_COUNT     UINT16_COUNT
+#define UPVALUE_COUNT   LOCAL_COUNT
+#define GLOBAL_COUNT    UINT16_COUNT
+#define CONSTANT_COUNT  UINT16_MAX
+#define JUMP_MAX        UINT16_MAX
 
 typedef enum {
     PREC_NONE,
@@ -66,13 +69,13 @@ typedef struct {
 typedef struct Compiler {
     ObjFunction *fun;
     FunctionType type;
-    Local locals[LOCAL_COUNT];
     int local_count;
-    Upvalue upvalues[LOCAL_COUNT];
     int scope_depth;
     bool inside_loop;
     size_t loop_start;
     struct Compiler *enclosing;
+    Local locals[LOCAL_COUNT];
+    Upvalue upvalues[UPVALUE_COUNT]; // count for upvalues is kept in fun
 } Compiler;
 
 Parser parser;
@@ -112,11 +115,11 @@ static void synchronize()
             return;
         switch (parser.curr.type) {
         case TOKEN_CLASS: case TOKEN_FUN: case TOKEN_VAR:
-        case TOKEN_FOR: case TOKEN_IF: case TOKEN_WHILE:
+        case TOKEN_FOR:   case TOKEN_IF:  case TOKEN_WHILE:
         case TOKEN_PRINT: case TOKEN_RETURN:
         case TOKEN_CONST:
             return;
-        default:
+        default: // this is to silence switch warnings
             ;
         }
         advance();
@@ -127,10 +130,7 @@ static void synchronize()
 
 /* utilities */
 
-static Chunk *curr_chunk()
-{
-    return &curr->fun->chunk;
-}
+static Chunk *curr_chunk() { return &curr->fun->chunk; }
 
 static void advance()
 {
@@ -184,7 +184,7 @@ static void emit_return()                   { emit_two(OP_NIL, OP_RETURN); }
 static u16 make_constant(Value value)
 {
     size_t constant = chunk_add_const(curr_chunk(), value);
-    if (constant > CONSTANT_MAX) {
+    if (constant > CONSTANT_COUNT) {
         error("too many constants in one chunk");
         return 0;
     }
@@ -258,16 +258,12 @@ static ObjFunction *compiler_end()
 
 /* scope and variable handling */
 
-static void begin_scope()
-{
-    curr->scope_depth++;
-}
+static void begin_scope() { curr->scope_depth++; }
 
 static void end_scope()
 {
     curr->scope_depth--;
-    while (curr->local_count > 0
-        && curr->locals[curr->local_count - 1].depth > curr->scope_depth) {
+    while (curr->local_count > 0 && curr->locals[curr->local_count - 1].depth > curr->scope_depth) {
         if (curr->locals[curr->local_count - 1].is_captured)
             emit_byte(OP_CLOSE_UPVALUE);
         else
@@ -283,9 +279,7 @@ static u16 make_ident_constant(Token *name)
 
 static bool ident_equal(Token *a, Token *b)
 {
-    if (a->len != b->len)
-        return false;
-    return memcmp(a->start, b->start, a->len) == 0;
+    return a->len == b->len && memcmp(a->start, b->start, a->len) == 0;
 }
 
 static void add_local(Token name, bool is_const)
@@ -340,7 +334,7 @@ static void define_var(u16 global)
     emit_u16(OP_DEFINE_GLOBAL, global);
 }
 
-static Local *resolve_local(Compiler *compiler, Token *name)
+static int resolve_local(Compiler *compiler, Token *name)
 {
     // backwards walk to find a variable with the same name as *name
     for (int i = compiler->local_count - 1; i >= 0; i--) {
@@ -348,31 +342,30 @@ static Local *resolve_local(Compiler *compiler, Token *name)
         if (ident_equal(name, &local->name)) {
             if (local->depth == -1)
                 error("can't read local variable in its own initializer");
-            return local;
+            return i;
         }
     }
-    return NULL;
+    return -1;
 }
 
 static int add_upvalue(Compiler *compiler, u8 index, bool is_local)
 {
-    int upvalue_count = compiler->fun->upvalue_count;
+    int count = compiler->fun->upvalue_count;
 
     // check if we already have a similar upvalue
-    for (int i = 0; i < upvalue_count; i++) {
+    for (int i = 0; i < count; i++) {
         Upvalue *upvalue = &compiler->upvalues[i];
-        if (upvalue->index == index && upvalue->is_local == is_local) {
+        if (upvalue->index == index && upvalue->is_local == is_local)
             return i;
-        }
     }
 
-    if (upvalue_count == LOCAL_COUNT) {
+    if (count == UPVALUE_COUNT) {
         error("too many closure variables in function");
         return 0;
     }
 
-    compiler->upvalues[upvalue_count].is_local = is_local;
-    compiler->upvalues[upvalue_count].index    = index;
+    compiler->upvalues[count].is_local = is_local;
+    compiler->upvalues[count].index    = index;
     return compiler->fun->upvalue_count++;
 }
 
@@ -380,11 +373,10 @@ static int resolve_upvalue(Compiler *compiler, Token *name)
 {
     if (compiler->enclosing == NULL)
         return -1;
-    Local *local = resolve_local(compiler->enclosing, name);
-    if (local) {
-        int index = local - compiler->enclosing->locals;
-        compiler->enclosing->locals[index].is_captured = true;
-        return add_upvalue(compiler, (u8)index, true);
+    int local = resolve_local(compiler->enclosing, name);
+    if (local != -1) {
+        compiler->enclosing->locals[local].is_captured = true;
+        return add_upvalue(compiler, (u8) local, true);
     }
     int upvalue = resolve_upvalue(compiler->enclosing, name);
     if (upvalue != -1)
@@ -449,7 +441,7 @@ static void function(FunctionType type)
     }
 
     emit_u16(OP_CLOSURE, make_constant(VALUE_MKOBJ(fun)));
-    for (size_t i = 0; i < fun->upvalue_count; i++)
+    for (int i = 0; i < fun->upvalue_count; i++)
         emit_u16((u8)compiler.upvalues[i].is_local, compiler.upvalues[i].index);
 }
 
@@ -795,14 +787,12 @@ static void named_var(Token name, bool can_assign)
 {
     u8 getop, setop;
     bool is_const;
-    Local *local = resolve_local(curr, &name);
-    int arg;
+    int arg = resolve_local(curr, &name);
 
-    if (local) {
-        arg      = local - curr->locals;
+    if (arg != -1) {
         getop    = OP_GET_LOCAL;
         setop    = OP_SET_LOCAL;
-        is_const = local->is_const;
+        is_const = curr->locals[arg].is_const;
     } else if (arg = resolve_upvalue(curr, &name), arg != -1) {
         getop    = OP_GET_UPVALUE;
         setop    = OP_SET_UPVALUE;

@@ -60,12 +60,12 @@ static size_t closure_instr(const char *name, Chunk *chunk, size_t offset)
     printf("'");
 
     ObjFunction *fun = AS_FUNCTION(chunk->constants.values[constant]);
-    for (size_t j = 0; j < fun->upvalue_count; j++) {
+    for (int j = 0; j < fun->upvalue_count; j++) {
         int is_local = chunk->code[offset++];
         u8 b1 = chunk->code[offset++];
         u8 b2 = chunk->code[offset++];
         u16 index    = TOU16(b1, b2);
-        printf("\n%04ld:        | %s %d", offset - 2, is_local ? "local" : "upvalue", index);
+        printf("\n%04ld:       | %s %05d", offset - 2, is_local ? "local" : "upvalue", index);
     }
 
     return offset;

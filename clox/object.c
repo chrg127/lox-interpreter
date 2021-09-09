@@ -39,6 +39,47 @@ static u32 hash_string(const char *str, size_t len)
     return hash;
 }
 
+static void print_function(ObjFunction *fun)
+{
+    if (fun->name == NULL) {
+        printf("<script>");
+        return;
+    }
+    printf("<fn %s>", fun->name->data);
+}
+
+static void free_obj(Obj *obj)
+{
+    switch (obj->type) {
+    case OBJ_STRING: {
+        ObjString *str = (ObjString *)obj;
+        FREE_ARRAY(char, str->data, str->len+1);
+        FREE(ObjString, obj);
+        break;
+    }
+    case OBJ_FUNCTION: {
+        ObjFunction *fun = (ObjFunction *)obj;
+        chunk_free(&fun->chunk);
+        FREE(ObjFunction, obj);
+        break;
+    }
+    case OBJ_NATIVE:
+        FREE(ObjNative, obj);
+        break;
+    case OBJ_CLOSURE: {
+        ObjClosure *closure = (ObjClosure *)obj;
+        FREE_ARRAY(ObjUpvalue *, closure->upvalues, closure->upvalue_count);
+        FREE(ObjClosure, obj);
+        break;
+    }
+    case OBJ_UPVALUE:
+        FREE(ObjUpvalue, obj);
+        break;
+    }
+}
+
+
+
 ObjString *obj_copy_string(const char *str, size_t len)
 {
     u32 hash = hash_string(str, len);
@@ -84,7 +125,7 @@ ObjNative *obj_make_native(NativeFn fun, const char *name, u8 arity)
 ObjClosure *obj_make_closure(ObjFunction *fun)
 {
     ObjUpvalue **upvalues = ALLOCATE(ObjUpvalue *, fun->upvalue_count);
-    for (size_t i = 0; i < fun->upvalue_count; i++)
+    for (int i = 0; i < fun->upvalue_count; i++)
         upvalues[i] = NULL;
     ObjClosure *closure = ALLOCATE_OBJ(ObjClosure, OBJ_CLOSURE);
     closure->fun           = fun;
@@ -102,15 +143,6 @@ ObjUpvalue *obj_make_upvalue(Value *slot)
     return upvalue;
 }
 
-static void print_function(ObjFunction *fun)
-{
-    if (fun->name == NULL) {
-        printf("<script>");
-        return;
-    }
-    printf("<fn %s>", fun->name->data);
-}
-
 void obj_print(Value value)
 {
     switch (OBJ_TYPE(value)) {
@@ -119,36 +151,6 @@ void obj_print(Value value)
     case OBJ_NATIVE: printf("<native fn '%s'>", ((ObjNative *)AS_OBJ(value))->name); break;
     case OBJ_CLOSURE: print_function(AS_CLOSURE(value)->fun); break;
     case OBJ_UPVALUE: printf("upvalue"); break;
-    }
-}
-
-static void free_obj(Obj *obj)
-{
-    switch (obj->type) {
-    case OBJ_STRING: {
-        ObjString *str = (ObjString *)obj;
-        FREE_ARRAY(char, str->data, str->len+1);
-        FREE(ObjString, obj);
-        break;
-    }
-    case OBJ_FUNCTION: {
-        ObjFunction *fun = (ObjFunction *)obj;
-        chunk_free(&fun->chunk);
-        FREE(ObjFunction, obj);
-        break;
-    }
-    case OBJ_NATIVE:
-        FREE(ObjNative, obj);
-        break;
-    case OBJ_CLOSURE: {
-        ObjClosure *closure = (ObjClosure *)obj;
-        FREE_ARRAY(ObjUpvalue *, closure->upvalues, closure->upvalue_count);
-        FREE(ObjClosure, obj);
-        break;
-    }
-    case OBJ_UPVALUE:
-        FREE(ObjUpvalue, obj);
-        break;
     }
 }
 

@@ -38,7 +38,7 @@ static inline size_t vector_grow_cap(size_t old_cap)
         if (arr->cap < arr->size + 1) {                 \
             size_t old = arr->cap;                      \
             arr->cap = vector_grow_cap(old);            \
-            arr->data_name = GROW_ARRAY(TVal, arr->data_name, old, arr->cap);         \
+            arr->data_name = GROW_ARRAY(TVal, arr->data_name, old, arr->cap); \
         }                                               \
         arr->data_name[arr->size++] = value;            \
     }                                                   \

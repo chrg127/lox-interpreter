@@ -46,6 +46,7 @@ typedef struct {
 
 typedef struct {
     u8 *code;
+    int *lines;
     size_t size;
     size_t cap;
     ValueArray constants;

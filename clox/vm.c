@@ -224,15 +224,15 @@ static VMResult run()
 #define READ_CONSTANT_LONG() (frame->fun->chunk.constants.values[READ_SHORT()])
 #define READ_STRING() AS_STRING(READ_CONSTANT_LONG())
 
-#define BINARY_OP(value_type, op) \
-    do {                    \
-        if (!IS_NUM(peek(0)) || !IS_NUM(peek(1))) { \
-            runtime_error("operands must be numbers"); \
-            return VM_RUNTIME_ERROR; \
-        } \
-        double b = AS_NUM(pop()); \
-        double a = AS_NUM(pop()); \
-        push(value_type(a op b));    \
+#define BINARY_OP(value_type, op)                       \
+    do {                                                \
+        if (!IS_NUM(peek(0)) || !IS_NUM(peek(1))) {     \
+            runtime_error("operands must be numbers");  \
+            return VM_RUNTIME_ERROR;                    \
+        }                                               \
+        double b = AS_NUM(pop());                       \
+        double a = AS_NUM(pop());                       \
+        push(value_type(a op b));                       \
     } while (0)
 
     for (;;) {
@@ -388,7 +388,7 @@ static VMResult run()
             ObjFunction *fun = AS_FUNCTION(READ_CONSTANT_LONG());
             ObjClosure *closure = obj_make_closure(fun);
             push(VALUE_MKOBJ(closure));
-            for (size_t i = 0; i < closure->upvalue_count; i++) {
+            for (int i = 0; i < closure->upvalue_count; i++) {
                 u8 is_local = READ_BYTE();
                 u16 index    = READ_SHORT();
                 closure->upvalues[i] = is_local ? capture_upvalue(frame->slots + index)
