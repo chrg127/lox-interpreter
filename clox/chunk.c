@@ -3,6 +3,8 @@
 #include "memory.h"
 #include "vector.h"
 #include "value.h"
+#include "uint.h"
+#include "vm.h"
 
 void chunk_init(Chunk *chunk)
 {
@@ -34,6 +36,8 @@ void chunk_free(Chunk *chunk)
 
 size_t chunk_add_const(Chunk *chunk, Value value)
 {
+    vm_push(value);
     valuearray_write(&chunk->constants, value);
+    vm_pop(value);
     return chunk->constants.size - 1;
 }

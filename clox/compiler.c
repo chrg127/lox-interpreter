@@ -6,6 +6,8 @@
 #include <string.h>
 #include "chunk.h"
 #include "scanner.h"
+#include "memory.h"
+#include "debug.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "disassemble.h"
@@ -789,4 +791,13 @@ ObjFunction *compile(const char *src, const char *filename)
 
     ObjFunction *fun = compiler_end();
     return parser.had_error ? NULL : fun;
+}
+
+void compiler_mark_roots()
+{
+    Compiler *compiler = curr;
+    while (compiler != NULL) {
+        gc_mark_obj((Obj *) compiler->fun);
+        compiler = compiler->enclosing;
+    }
 }

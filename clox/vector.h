@@ -18,8 +18,8 @@ static inline size_t vector_grow_cap(size_t old_cap)
 }
 
 #define VECTOR_DECLARE_INIT(T, TVal, header)  void header##_init(T *arr)
-#define VECTOR_DECLARE_FREE(T, TVal, header)  void header##_write(T *arr, TVal value)
-#define VECTOR_DECLARE_WRITE(T, TVal, header) void header##_free(T *arr)
+#define VECTOR_DECLARE_WRITE(T, TVal, header)  void header##_write(T *arr, TVal value)
+#define VECTOR_DECLARE_FREE(T, TVal, header) void header##_free(T *arr)
 #define VECTOR_DECLARE_SEARCH(T, TVal, header) TVal *header##_search(T *arr, TVal value)
 
 #define VECTOR_DEFINE_INIT(T, TVal, header, data_name)  \
