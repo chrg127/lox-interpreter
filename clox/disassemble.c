@@ -13,7 +13,7 @@ static size_t simple_instr(const char *name, size_t offset)
 static size_t const_instr(const char *name, Chunk *chunk, size_t offset)
 {
     u8 index = chunk->code[offset + 1];
-    printf("%s %02d '", name, index);
+    printf("%s %03d '", name, index);
     value_print(chunk->constants.values[index]);
     printf("'");
     return offset + 2;
@@ -22,7 +22,7 @@ static size_t const_instr(const char *name, Chunk *chunk, size_t offset)
 static size_t const_long_instr(const char *name, Chunk *chunk, size_t offset)
 {
     u16 index = TOU16(chunk->code[offset + 1], chunk->code[offset + 2]);
-    printf("%s %d %d (%d) '", name, b1, b2, index);
+    printf("%s %05d '", name, index);
     value_print(chunk->constants.values[index]);
     printf("'");
     return offset + 3;
@@ -31,16 +31,14 @@ static size_t const_long_instr(const char *name, Chunk *chunk, size_t offset)
 static size_t byte_instr(const char *name, Chunk *chunk, size_t offset)
 {
     u8 slot = chunk->code[offset+1];
-    printf("%s %02d", name, slot);
+    printf("%s %03d", name, slot);
     return offset + 2;
 }
 
 static size_t byte2_instr(const char *name, Chunk *chunk, size_t offset)
 {
-    u8 b1 = chunk->code[offset+1];
-    u8 b2 = chunk->code[offset+2];
-    u16 slot = b2 << 8 | b1;
-    printf("%s %d %d (%d)", name, b1, b2, slot);
+    u16 slot = TOU16(chunk->code[offset+1], chunk->code[offset+2]);
+    printf("%s %05d", name, slot);
     return offset + 3;
 }
 

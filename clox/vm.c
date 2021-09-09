@@ -66,8 +66,8 @@ static void reset_stack()
 static void v_runtime_error(const char *fmt, va_list args)
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
-    size_t offset = vm.ip - frame->closure->fun->chunk.code - 1;
-    int line = chunk_get_line(&frame->closure->fun->chunk, offset);
+    size_t offset = vm.ip - frame->fun->chunk.code - 1;
+    int line = chunk_get_line(&frame->fun->chunk, offset);
     fprintf(stderr, "%s:%d: runtime error: ", vm.filename, line);
 
     vfprintf(stderr, fmt, args);
@@ -79,7 +79,7 @@ static void v_runtime_error(const char *fmt, va_list args)
     fprintf(stderr, "traceback:\n");
     for (int i = vm.frame_size - 1; i >= 0; i--) {
         CallFrame *frame = &vm.frames[i];
-        ObjFunction *fun = frame->closure->fun;
+        ObjFunction *fun = frame->fun;
         size_t offset = frame->ip - fun->chunk.code - 1;
         fprintf(stderr, "%s:%ld: in ", vm.filename, chunk_get_line(&fun->chunk, offset));
         if (fun->name == NULL)
@@ -108,11 +108,28 @@ void runtime_error(const char *fmt, ...)
     va_end(args);
 }
 
+static bool call_fun(ObjFunction *fun, u8 argc)
+{
+    if (argc != fun->arity) {
+        runtime_error("expected %d arguments, got %d", fun->arity, argc);
+        return false;
+    }
+    if (vm.frame_size == FRAMES_MAX) {
+        runtime_error("stack overflow");
+        return false;
+    }
+    CallFrame *frame = &vm.frames[vm.frame_size++];
+    frame->closure = NULL;
+    frame->fun     = fun;
+    frame->ip      = fun->chunk.code;
+    frame->slots   = vm.sp - argc - 1;
+    return true;
+}
+
 static bool call(ObjClosure *closure, u8 argc)
 {
     if (argc != closure->fun->arity) {
-        runtime_error("expected %d arguments, got %d",
-            closure->fun->arity, argc);
+        runtime_error("expected %d arguments, got %d", closure->fun->arity, argc);
         return false;
     }
     if (vm.frame_size == FRAMES_MAX) {
@@ -121,8 +138,9 @@ static bool call(ObjClosure *closure, u8 argc)
     }
     CallFrame *frame = &vm.frames[vm.frame_size++];
     frame->closure = closure;
-    frame->ip    = closure->fun->chunk.code;
-    frame->slots = vm.sp - argc - 1;
+    frame->fun     = closure->fun;
+    frame->ip      = closure->fun->chunk.code;
+    frame->slots   = vm.sp - argc - 1;
     return true;
 }
 
@@ -130,8 +148,8 @@ static bool call_value(Value callee, u8 argc)
 {
     if (IS_OBJ(callee)) {
         switch (OBJ_TYPE(callee)) {
-        // case OBJ_FUNCTION:
-        //     return call(AS_FUNCTION(callee), argc);
+        case OBJ_FUNCTION:
+            return call_fun(AS_FUNCTION(callee), argc);
         case OBJ_NATIVE: {
             ObjNative *obj = AS_NATIVE_OBJ(callee);
             if (obj->arity != argc) {
@@ -202,8 +220,8 @@ static VMResult run()
 
 #define READ_BYTE() (*vm.ip++)
 #define READ_SHORT() (vm.ip += 2, (u16)((vm.ip[-1] << 8) | vm.ip[-2]))
-#define READ_CONSTANT()      (frame->closure->fun->chunk.constants.values[READ_BYTE()])
-#define READ_CONSTANT_LONG() (frame->closure->fun->chunk.constants.values[READ_SHORT()])
+#define READ_CONSTANT()      (frame->fun->chunk.constants.values[READ_BYTE()])
+#define READ_CONSTANT_LONG() (frame->fun->chunk.constants.values[READ_SHORT()])
 #define READ_STRING() AS_STRING(READ_CONSTANT_LONG())
 
 #define BINARY_OP(value_type, op) \
@@ -222,8 +240,8 @@ static VMResult run()
 #ifdef DEBUG_TRACE_EXECUTION
         print_stack();
         disassemble_opcode(
-            &frame->closure->fun->chunk,
-            (size_t)(vm.ip - frame->closure->fun->chunk.code)
+            &frame->fun->chunk,
+            (size_t)(vm.ip - frame->fun->chunk.code)
         );
         printf("\n");
 #endif
