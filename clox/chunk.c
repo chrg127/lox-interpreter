@@ -32,7 +32,7 @@ void chunk_free(Chunk *chunk)
     chunk_init(chunk);
 }
 
-int chunk_add_const(Chunk *chunk, Value value)
+size_t chunk_add_const(Chunk *chunk, Value value)
 {
     valuearray_write(&chunk->constants, value);
     return chunk->constants.size - 1;

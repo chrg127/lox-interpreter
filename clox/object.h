@@ -29,7 +29,7 @@ struct ObjString {
 typedef struct {
     Obj obj;
     int arity;
-    size_t upvalue_count;
+    int upvalue_count;
     Chunk chunk;
     ObjString *name;
 } ObjFunction;
@@ -53,7 +53,7 @@ typedef struct {
     Obj obj;
     ObjFunction *fun;
     ObjUpvalue **upvalues;
-    size_t upvalue_count;
+    int upvalue_count;
 } ObjClosure;
 
 #define OBJ_TYPE(value)     (AS_OBJ(value)->type)

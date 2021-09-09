@@ -1,9 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stddef.h>
-#include <string.h>
-#include "chunk.h"
-#include "disassemble.h"
 #include "vm.h"
 
 static void repl()
@@ -14,12 +10,14 @@ static void repl()
     for (;;) {
         printf("> ");
 
+        // exit condition
         if (s = fgets(line, sizeof(line), stdin), s == NULL) {
             printf("\n");
             break;
         }
 
-        if (strncmp(s, "\n", sizeof("\n")) != 0)
+        // interpret only if line isn't empty
+        if (!(s[0] == '\n' && s[1] == '\0'))
             vm_interpret(line, "stdin");
     }
 }
@@ -74,9 +72,9 @@ int main(int argc, char *argv[])
     else if (argc == 2)
         run_file(argv[1]);
     else {
-        fprintf(stderr, "usage: clox [path]\n");
+        fprintf(stderr, "usage: clox [file]\n");
         vm_free();
-        exit(1);
+        return 1;
     }
 
     vm_free();
