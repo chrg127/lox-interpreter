@@ -1,6 +1,7 @@
 #include "vm.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <string.h>
@@ -9,11 +10,12 @@
 #include "object.h"
 #include "memory.h"
 #include "native.h"
+#include "debug.h"
 
 VM vm;
 
-void push(Value value) { *vm.sp++ = value; }
-Value pop()            { return *--vm.sp;  }
+void vm_push(Value value) { *vm.sp++ = value; }
+Value vm_pop()            { return *--vm.sp;  }
 
 static void print_stack()
 {
@@ -42,15 +44,17 @@ static bool is_falsey(Value value)
 
 static void concat()
 {
-    ObjString *b = AS_STRING(pop());
-    ObjString *a = AS_STRING(pop());
+    ObjString *b = AS_STRING(peek(0));
+    ObjString *a = AS_STRING(peek(1));
     size_t len = a->len + b->len;
     char *data = ALLOCATE(char, len+1);
     memcpy(data,          a->data, a->len);
     memcpy(data + a->len, b->data, b->len);
     data[len] = '\0';
     ObjString *result = obj_take_string(data, len);
-    push(VALUE_MKOBJ(result));
+    vm_pop();
+    vm_pop();
+    vm_push(VALUE_MKOBJ(result));
 }
 
 static void reset_stack()
@@ -162,7 +166,7 @@ static bool call_value(Value callee, u8 argc)
             if (result.error)
                 return false;
             vm.sp -= argc + 1;
-            push(result.value);
+            vm_push(result.value);
             return true;
         case OBJ_CLOSURE:
             return call(AS_CLOSURE(callee), argc);
@@ -206,11 +210,11 @@ static void close_upvalues(Value *last)
 
 static void define_native(const char *name, NativeFn fun, u8 arity)
 {
-    push(VALUE_MKOBJ(obj_copy_string(name, strlen(name))));
-    push(VALUE_MKOBJ(obj_make_native(fun, name, arity)));
+    vm_push(VALUE_MKOBJ(obj_copy_string(name, strlen(name))));
+    vm_push(VALUE_MKOBJ(obj_make_native(fun, name, arity)));
     table_install(&vm.globals, AS_STRING(vm.stack[0]), vm.stack[1]);
-    pop();
-    pop();
+    vm_pop();
+    vm_pop();
 }
 
 static VMResult run()
@@ -230,9 +234,9 @@ static VMResult run()
             runtime_error("operands must be numbers");  \
             return VM_RUNTIME_ERROR;                    \
         }                                               \
-        double b = AS_NUM(pop());                       \
-        double a = AS_NUM(pop());                       \
-        push(value_type(a op b));                       \
+        double b = AS_NUM(vm_pop());                       \
+        double a = AS_NUM(vm_pop());                       \
+        vm_push(value_type(a op b));                    \
     } while (0)
 
     for (;;) {
@@ -250,22 +254,22 @@ static VMResult run()
         switch (instr) {
         case OP_CONSTANT: {
             Value constant = READ_CONSTANT();
-            push(constant);
+            vm_push(constant);
             break;
         }
         case OP_CONSTANT_LONG: {
             Value constant = READ_CONSTANT_LONG();
-            push(constant);
+            vm_push(constant);
             break;
         }
-        case OP_NIL:    push(VALUE_MKNIL());       break;
-        case OP_TRUE:   push(VALUE_MKBOOL(true));  break;
-        case OP_FALSE:  push(VALUE_MKBOOL(false)); break;
-        case OP_POP:    pop();                     break;
+        case OP_NIL:    vm_push(VALUE_MKNIL());       break;
+        case OP_TRUE:   vm_push(VALUE_MKBOOL(true));  break;
+        case OP_FALSE:  vm_push(VALUE_MKBOOL(false)); break;
+        case OP_POP:    vm_pop();                     break;
         case OP_DEFINE_GLOBAL: {
             ObjString *name = READ_STRING();
             table_install(&vm.globals, name, peek(0));
-            pop();
+            vm_pop();
             break;
         }
         case OP_GET_GLOBAL: {
@@ -275,7 +279,7 @@ static VMResult run()
                 runtime_error("undefined variable '%s'", name->data);
                 return VM_RUNTIME_ERROR;
             }
-            push(value);
+            vm_push(value);
             break;
         }
         case OP_SET_GLOBAL: {
@@ -289,7 +293,7 @@ static VMResult run()
         }
         case OP_GET_LOCAL: {
             u16 slot = READ_SHORT();
-            push(frame->slots[slot]);
+            vm_push(frame->slots[slot]);
             break;
         }
         case OP_SET_LOCAL: {
@@ -299,7 +303,7 @@ static VMResult run()
         }
         case OP_GET_UPVALUE: {
             u16 slot = READ_SHORT();
-            push(*frame->closure->upvalues[slot]->location);
+            vm_push(*frame->closure->upvalues[slot]->location);
             break;
         }
         case OP_SET_UPVALUE: {
@@ -308,9 +312,9 @@ static VMResult run()
             break;
         }
         case OP_EQ: {
-            Value b = pop();
-            Value a = pop();
-            push(VALUE_MKBOOL(value_equal(a, b)));
+            Value b = vm_pop();
+            Value a = vm_pop();
+            vm_push(VALUE_MKBOOL(value_equal(a, b)));
             break;
         }
         case OP_GREATER: BINARY_OP(VALUE_MKBOOL, >); break;
@@ -319,9 +323,9 @@ static VMResult run()
             if (IS_STRING(peek(0)) && IS_STRING(peek(1)))
                 concat();
             else if (IS_NUM(peek(0)) && IS_NUM(peek(1))) {
-                double b = AS_NUM(pop());
-                double a = AS_NUM(pop());
-                push(VALUE_MKNUM(a + b));
+                double b = AS_NUM(vm_pop());
+                double a = AS_NUM(vm_pop());
+                vm_push(VALUE_MKNUM(a + b));
             } else {
                 runtime_error("operands must be two numbers or two strings");
                 return VM_RUNTIME_ERROR;
@@ -331,7 +335,7 @@ static VMResult run()
         case OP_MUL:    BINARY_OP(VALUE_MKNUM, *); break;
         case OP_DIV:    BINARY_OP(VALUE_MKNUM, /); break;
         case OP_NOT: {
-            push(VALUE_MKBOOL(is_falsey(pop())));
+            vm_push(VALUE_MKBOOL(is_falsey(vm_pop())));
             break;
         }
         case OP_NEGATE:
@@ -342,7 +346,7 @@ static VMResult run()
             vm.sp[-1] = VALUE_MKNUM(-AS_NUM(vm.sp[-1]));
             break;
         case OP_PRINT:
-            value_print(pop());
+            value_print(vm_pop());
             printf("\n");
             break;
         case OP_BRANCH: {
@@ -371,15 +375,15 @@ static VMResult run()
             break;
         }
         case OP_RETURN: {
-            Value result = pop();
+            Value result = vm_pop();
             close_upvalues(frame->slots);
             vm.frame_size--;
             if (vm.frame_size == 0) {
-                pop();
+                vm_pop();
                 return VM_OK;
             }
             vm.sp = frame->slots;
-            push(result);
+            vm_push(result);
             frame = &vm.frames[vm.frame_size-1];
             vm.ip = frame->ip;
             break;
@@ -387,7 +391,7 @@ static VMResult run()
         case OP_CLOSURE: {
             ObjFunction *fun = AS_FUNCTION(READ_CONSTANT_LONG());
             ObjClosure *closure = obj_make_closure(fun);
-            push(VALUE_MKOBJ(closure));
+            vm_push(VALUE_MKOBJ(closure));
             for (int i = 0; i < closure->upvalue_count; i++) {
                 u8 is_local = READ_BYTE();
                 u16 index    = READ_SHORT();
@@ -398,7 +402,7 @@ static VMResult run()
         }
         case OP_CLOSE_UPVALUE:
             close_upvalues(vm.sp - 1);
-            pop();
+            vm_pop();
             break;
         default:
             runtime_error("unknown opcode: %d", instr);
@@ -417,8 +421,11 @@ void vm_init()
 {
     reset_stack();
     vm.objects = NULL;
+    vm.bytes_allocated = 0;
+    vm.next_gc = 1024 * 1024;
     table_init(&vm.globals);
     table_init(&vm.strings);
+    graystack_init(&vm.gray_stack);
     define_native("clock", native_clock, 0);
     define_native("sqrt",  native_sqrt,  1);
     define_native("str", native_tostr, 1);
@@ -428,6 +435,7 @@ void vm_free()
 {
     table_free(&vm.globals);
     table_free(&vm.strings);
+    free(vm.gray_stack.stack);
     obj_free_arr(vm.objects);
 }
 
@@ -436,10 +444,10 @@ VMResult vm_interpret(const char *src, const char *filename)
     ObjFunction *fun = compile(src, filename);
     if (!fun)
         return VM_COMPILE_ERROR;
-    push(VALUE_MKOBJ(fun));
+    vm_push(VALUE_MKOBJ(fun));
     ObjClosure *closure = obj_make_closure(fun);
-    pop();
-    push(VALUE_MKOBJ(closure));
+    vm_pop();
+    vm_push(VALUE_MKOBJ(closure));
     call(closure, 0);
     vm.filename = filename;
 
@@ -448,4 +456,19 @@ VMResult vm_interpret(const char *src, const char *filename)
 #endif
 
     return run();
+}
+
+VECTOR_DEFINE_INIT(GrayStack, Obj *, graystack, stack)
+
+void graystack_write(GrayStack *arr, Obj *obj)
+{
+    if (arr->cap < arr->size + 1) {
+        arr->cap = vector_grow_cap(arr->cap);
+        arr->stack = realloc(arr->stack, sizeof(Obj *) * arr->cap);
+        if (!arr->stack) {
+            fprintf(stderr, "panic: gray stack is NULL\n");
+            exit(1);
+        }
+    }
+    arr->stack[arr->size++] = obj;
 }

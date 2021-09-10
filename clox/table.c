@@ -205,3 +205,4 @@ ObjString *table_find_string(Table *tab, const char *data, size_t len,
         i = (i + 1) % tab->cap;
     }
 }
+

@@ -16,7 +16,7 @@ typedef enum {
 typedef struct Obj Obj;
 typedef struct ObjString ObjString;
 
-typedef struct {
+typedef struct Value {
     ValueType type;
     // u32 hash;
     union {

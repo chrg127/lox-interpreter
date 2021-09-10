@@ -12,7 +12,7 @@ typedef struct {
     Value value;
 } Entry;
 
-typedef struct {
+typedef struct Table {
     size_t size;
     size_t cap;
     Entry *entries;
@@ -36,5 +36,8 @@ static inline bool table_delete(Table *tab, ObjString *key)               { retu
 void table_add_all(Table *from, Table *to);
 ObjString *table_find_string(Table *tab, const char *data, size_t len,
                              u32 hash);
+
+#define TABLE_FOR_EACH(tab, entry) \
+    for (Entry *entry = tab->entries; ((size_t) (entry - tab->entries)) < tab->cap; entry++)
 
 #endif

@@ -18,6 +18,7 @@ typedef enum {
 
 struct Obj {
     ObjType type;
+    bool marked;
     struct Obj *next;
 };
 
@@ -83,6 +84,7 @@ ObjNative *obj_make_native(NativeFn fun, const char *name, u8 arity);
 ObjClosure *obj_make_closure(ObjFunction *fun);
 ObjUpvalue *obj_make_upvalue(Value *slot);
 void obj_print(Value value);
+void obj_free(Obj *obj);
 void obj_free_arr(Obj *objects);
 u32 obj_hash(Obj *obj);
 bool obj_strcmp(Value a, Value b);

@@ -5,13 +5,32 @@
 #include "memory.h"
 #include "table.h"
 #include "vm.h"
+#include "debug.h"
+
+static const char *type_tostring(ObjType type)
+{
+    switch (type) {
+    case OBJ_STRING:   return "ObjString";
+    case OBJ_FUNCTION: return "ObjFunction";
+    case OBJ_NATIVE:   return "ObjNative";
+    case OBJ_CLOSURE:  return "ObjClosure";
+    case OBJ_UPVALUE:  return "ObjUpvalue";
+    default: return "NoType";
+    }
+}
 
 static Obj *alloc_obj(size_t size, ObjType type)
 {
     Obj *obj = reallocate(NULL, 0, size);
     obj->type = type;
+    obj->marked = false;
     obj->next = vm.objects;
     vm.objects = obj;
+
+#ifdef DEBUG_LOG_GC
+    printf("%p allocate %zu for %s\n", (void *) obj, size, type_tostring(type));
+#endif
+
     return obj;
 }
 
@@ -24,7 +43,9 @@ static ObjString *alloc_str(char *data, size_t len, u32 hash)
     str->len  = len;
     str->data = data;
     str->hash = hash;
+    vm_push(VALUE_MKOBJ(str));
     table_install(&vm.strings, str, VALUE_MKNIL());
+    vm_pop();
     return str;
 }
 
@@ -46,36 +67,6 @@ static void print_function(ObjFunction *fun)
         return;
     }
     printf("<fn %s>", fun->name->data);
-}
-
-static void free_obj(Obj *obj)
-{
-    switch (obj->type) {
-    case OBJ_STRING: {
-        ObjString *str = (ObjString *)obj;
-        FREE_ARRAY(char, str->data, str->len+1);
-        FREE(ObjString, obj);
-        break;
-    }
-    case OBJ_FUNCTION: {
-        ObjFunction *fun = (ObjFunction *)obj;
-        chunk_free(&fun->chunk);
-        FREE(ObjFunction, obj);
-        break;
-    }
-    case OBJ_NATIVE:
-        FREE(ObjNative, obj);
-        break;
-    case OBJ_CLOSURE: {
-        ObjClosure *closure = (ObjClosure *)obj;
-        FREE_ARRAY(ObjUpvalue *, closure->upvalues, closure->upvalue_count);
-        FREE(ObjClosure, obj);
-        break;
-    }
-    case OBJ_UPVALUE:
-        FREE(ObjUpvalue, obj);
-        break;
-    }
 }
 
 
@@ -154,12 +145,46 @@ void obj_print(Value value)
     }
 }
 
+void obj_free(Obj *obj)
+{
+#ifdef DEBUG_LOC_GC
+    printf("%p free type %s\n", (void *)obj, type_tostring(obj->type));
+#endif
+
+    switch (obj->type) {
+    case OBJ_STRING: {
+        ObjString *str = (ObjString *)obj;
+        FREE_ARRAY(char, str->data, str->len+1);
+        FREE(ObjString, obj);
+        break;
+    }
+    case OBJ_FUNCTION: {
+        ObjFunction *fun = (ObjFunction *)obj;
+        chunk_free(&fun->chunk);
+        FREE(ObjFunction, obj);
+        break;
+    }
+    case OBJ_NATIVE:
+        FREE(ObjNative, obj);
+        break;
+    case OBJ_CLOSURE: {
+        ObjClosure *closure = (ObjClosure *)obj;
+        FREE_ARRAY(ObjUpvalue *, closure->upvalues, closure->upvalue_count);
+        FREE(ObjClosure, obj);
+        break;
+    }
+    case OBJ_UPVALUE:
+        FREE(ObjUpvalue, obj);
+        break;
+    }
+}
+
 void obj_free_arr(Obj *objects)
 {
     Obj *obj = objects;
     while (obj != NULL) {
         Obj *next = obj->next;
-        free_obj(obj);
+        obj_free(obj);
         obj = next;
     }
 }

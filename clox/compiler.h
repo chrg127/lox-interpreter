@@ -5,5 +5,6 @@
 #include "object.h"
 
 ObjFunction *compile(const char *src, const char *filename);
+void compiler_mark_roots();
 
 #endif

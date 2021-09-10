@@ -3,6 +3,8 @@
 #include "memory.h"
 #include "vector.h"
 #include "value.h"
+#include "uint.h"
+#include "vm.h"
 
 static void lineinfo_init(LineInfo *info)
 {
@@ -63,7 +65,9 @@ size_t chunk_add_const(Chunk *chunk, Value value)
         if (value_equal(chunk->constants.values[i], value))
             return i;
     }
+    vm_push(value);
     valuearray_write(&chunk->constants, value);
+    vm_pop(value);
     return chunk->constants.size - 1;
 }
 

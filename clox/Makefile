@@ -14,10 +14,10 @@ flags_deps = -MMD -MP -MF $(@:.o=.d)
 
 ifeq ($(build),debug)
     outdir := debug
-    CFLAGS += -g -DDEBUG -DDEBUG_PRINT_CODE -DDEBUG_TRACE_EXECUTION
+    CFLAGS += -g -DDEBUG
 else
     outdir := release
-    CFLAGS += -O3
+    CFLAGS += -O3 -DNDEBUG
 endif
 
 objs_main := $(patsubst %,$(outdir)/%,$(_objs_main))

@@ -55,7 +55,7 @@ static size_t closure_instr(const char *name, Chunk *chunk, size_t offset)
     u8 b1 = chunk->code[offset++];
     u8 b2 = chunk->code[offset++];
     u16 constant = TOU16(b1, b2);
-    printf("%s %d '", "clo", constant);
+    printf("%s %03d '", "clo", constant);
     value_print(chunk->constants.values[constant]);
     printf("'");
 
