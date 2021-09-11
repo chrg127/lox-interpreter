@@ -435,8 +435,8 @@ void vm_free()
 {
     table_free(&vm.globals);
     table_free(&vm.strings);
-    free(vm.gray_stack.stack);
     obj_free_arr(vm.objects);
+    free(vm.gray_stack.stack);
 }
 
 VMResult vm_interpret(const char *src, const char *filename)
