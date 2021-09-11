@@ -138,7 +138,7 @@ void gc_collect()
     trace_refs();
     remove_whites(&vm.strings);
     sweep();
-    vm.next_gc = vm.bytes_allocated = GC_HEAP_GROW_FACTOR;
+    vm.next_gc = vm.bytes_allocated * GC_HEAP_GROW_FACTOR;
 
 #ifdef DEBUG_LOC_GC
     printf("-- gc end\n");
