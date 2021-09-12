@@ -54,9 +54,6 @@ static void concat()
 
 static void reset_stack()
 {
-    if (vm.stack != NULL)
-        FREE_ARRAY(Value, vm.stack, STACK_MAX);
-    vm.stack = ALLOCATE(Value, STACK_MAX);
     vm.sp = vm.stack;
     vm.frame_size = 0;
     vm.open_upvalues = NULL;

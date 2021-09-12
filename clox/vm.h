@@ -9,7 +9,7 @@
 #include "value.h"
 #include "vector.h"
 
-#define STACK_MAX 16777216
+#define STACK_MAX UINT16_MAX
 #define FRAMES_MAX 64
 
 typedef struct {
@@ -30,7 +30,7 @@ typedef struct {
     CallFrame frames[FRAMES_MAX];
     size_t frame_size;
     u8 *ip;
-    Value *stack;//[STACK_MAX];
+    Value stack[STACK_MAX];
     Value *sp;
     Table globals;
     Table strings;
