@@ -254,6 +254,21 @@ ObjString *obj_tostring(Value value)
     }
     case OBJ_CLOSURE:  return fun_tostring(AS_CLOSURE(value)->fun);
     case OBJ_UPVALUE:  return obj_copy_string("upvalue", 7);
+    case OBJ_CLASS:    return AS_CLASS(value)->name;
+    case OBJ_INSTANCE: {
+        ObjInstance *inst = AS_INSTANCE(value);
+        return obj_concat(inst->klass->name, obj_copy_string(" instance", 9));
+    }
     default: return NULL; // unreachable
     }
+}
+
+ObjString *obj_concat(ObjString *a, ObjString *b)
+{
+    size_t len = a->len + b->len;
+    char *data = ALLOCATE(char, len+1);
+    memcpy(data,          a->data, a->len);
+    memcpy(data + a->len, b->data, b->len);
+    data[len] = '\0';
+    return obj_take_string(data, len);
 }

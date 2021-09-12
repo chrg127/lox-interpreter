@@ -46,12 +46,7 @@ static void concat()
 {
     ObjString *b = AS_STRING(peek(0));
     ObjString *a = AS_STRING(peek(1));
-    size_t len = a->len + b->len;
-    char *data = ALLOCATE(char, len+1);
-    memcpy(data,          a->data, a->len);
-    memcpy(data + a->len, b->data, b->len);
-    data[len] = '\0';
-    ObjString *result = obj_take_string(data, len);
+    ObjString *result = obj_concat(a, b);
     vm_pop();
     vm_pop();
     vm_push(VALUE_MKOBJ(result));
@@ -468,6 +463,8 @@ void vm_init()
     define_native("clock", native_clock, 0);
     define_native("sqrt",  native_sqrt,  1);
     define_native("str", native_tostr, 1);
+    define_native("typeof", native_typeof, 1);
+    define_native("has_field", native_has_field, 2);
 }
 
 void vm_free()

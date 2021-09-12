@@ -14,7 +14,7 @@ NativeResult native_clock(int argc, Value *argv)
 NativeResult native_sqrt(int argc, Value *argv)
 {
     if (!IS_NUM(argv[0])) {
-        native_runtime_error("sqrt", "invalid parameter");
+        native_runtime_error("sqrt", "invalid parameter: not a number value");
         return NATIVE_MKERR();
     }
     double param = AS_NUM(argv[0]);
@@ -25,4 +25,25 @@ NativeResult native_sqrt(int argc, Value *argv)
 NativeResult native_tostr(int argc, Value *argv)
 {
     return NATIVE_MKRES(VALUE_MKOBJ(value_tostring(argv[0])));
+}
+
+NativeResult native_typeof(int argc, Value *argv)
+{
+    return (IS_INSTANCE(argv[0])) ? NATIVE_MKRES(VALUE_MKOBJ(AS_INSTANCE(argv[0])->klass))
+                                  : NATIVE_MKRES(VALUE_MKNIL());
+}
+
+NativeResult native_has_field(int argc, Value *argv)
+{
+    if (!IS_STRING(argv[1])) {
+        native_runtime_error("has_field", "invalid parameter: not a string value");
+        return NATIVE_MKERR();
+    }
+    if (!IS_INSTANCE(argv[0]))
+        return NATIVE_MKRES(VALUE_MKBOOL(true));
+    ObjInstance *inst = AS_INSTANCE(argv[0]);
+    ObjString *name = AS_STRING(argv[1]);
+    Value value;
+    bool res = table_lookup(&inst->fields, name, &value);
+    return NATIVE_MKRES(VALUE_MKBOOL(res));
 }
