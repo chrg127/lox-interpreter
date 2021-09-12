@@ -455,11 +455,23 @@ static void fun_decl()
     define_var(global);
 }
 
+static void class_decl()
+{
+    consume(TOKEN_IDENT, "expected class name");
+    u16 name_constant = make_ident_constant(&parser.prev);
+    declare_var(false);
+    emit_u16(OP_CLASS, name_constant);
+    define_var(name_constant);
+    consume(TOKEN_LEFT_BRACE, "expected '{' before class body");
+    consume(TOKEN_RIGHT_BRACE, "expected '}' after class body");
+}
+
 static void decl()
 {
          if (match(TOKEN_VAR))   var_decl(false);
     else if (match(TOKEN_CONST)) var_decl(true);
     else if (match(TOKEN_FUN))   fun_decl();
+    else if (match(TOKEN_CLASS)) class_decl();
     else                         stmt();
     if (parser.panic_mode)
         synchronize();
@@ -746,6 +758,17 @@ static void call(bool can_assign)
     emit_two(OP_CALL, argc);
 }
 
+static void dot(bool can_assign)
+{
+    consume(TOKEN_IDENT, "expected property name after '.'");
+    u16 name = make_ident_constant(&parser.prev);
+    if (can_assign && match(TOKEN_EQ)) {
+        expr();
+        emit_u16(OP_SET_PROPERTY, name);
+    } else
+        emit_u16(OP_GET_PROPERTY, name);
+}
+
 static void unary(bool can_assign)
 {
     TokenType op = parser.prev.type;
@@ -824,15 +847,15 @@ static void variable(bool can_assign)
 }
 
 static ParseRule rules[] = {
-    [TOKEN_LEFT_PAREN]  = { grouping,   call,   PREC_CALL },
-    [TOKEN_RIGHT_PAREN] = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_LEFT_BRACE]  = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_RIGHT_BRACE] = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_COMMA]       = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_DOT]         = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_MINUS]       = { unary,      binary, PREC_TERM },
-    [TOKEN_PLUS]        = { NULL,       binary, PREC_TERM },
-    [TOKEN_SEMICOLON]   = { NULL,       NULL,   PREC_NONE },
+    [TOKEN_LEFT_PAREN]  = { grouping,   call,   PREC_CALL   },
+    [TOKEN_RIGHT_PAREN] = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_LEFT_BRACE]  = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_RIGHT_BRACE] = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_COMMA]       = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_DOT]         = { NULL,       dot,    PREC_CALL   },
+    [TOKEN_MINUS]       = { unary,      binary, PREC_TERM   },
+    [TOKEN_PLUS]        = { NULL,       binary, PREC_TERM   },
+    [TOKEN_SEMICOLON]   = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_SLASH]       = { NULL,       binary, PREC_FACTOR },
     [TOKEN_STAR]        = { NULL,       binary, PREC_FACTOR },
     [TOKEN_QMARK]       = { NULL,       NULL,   PREC_NONE }, //condexpr,   PREC_CONDEXPR },
@@ -845,28 +868,27 @@ static ParseRule rules[] = {
     [TOKEN_GREATER_EQ]  = { NULL,       binary, PREC_CMP    },
     [TOKEN_LESS]        = { NULL,       binary, PREC_CMP    },
     [TOKEN_LESS_EQ]     = { NULL,       binary, PREC_CMP    },
-    [TOKEN_IDENT]       = { variable,   NULL,   PREC_NONE },
-    [TOKEN_STRING]      = { string,     NULL,   PREC_NONE },
-    [TOKEN_NUMBER]      = { number,     NULL,   PREC_NONE },
-    [TOKEN_AND]         = { NULL,       and_op, PREC_AND  },
-    [TOKEN_CLASS]       = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_ELSE]        = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_FALSE]       = { literal,    NULL,   PREC_NONE },
-    [TOKEN_FOR]         = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_FUN]         = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_IF]          = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_NIL]         = { literal,    NULL,   PREC_NONE },
-    [TOKEN_OR]          = { NULL,       or_op,  PREC_OR   },
-    [TOKEN_PRINT]       = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_RETURN]      = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_SUPER]       = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_THIS]        = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_TRUE]        = { literal,    NULL,   PREC_NONE },
-    [TOKEN_VAR]         = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_WHILE]       = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_CONST]       = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_ERROR]       = { NULL,       NULL,   PREC_NONE },
-    [TOKEN_EOF]         = { NULL,       NULL,   PREC_NONE },
+    [TOKEN_IDENT]       = { variable,   NULL,   PREC_NONE   },
+    [TOKEN_STRING]      = { string,     NULL,   PREC_NONE   },
+    [TOKEN_NUMBER]      = { number,     NULL,   PREC_NONE   },
+    [TOKEN_AND]         = { NULL,       and_op, PREC_AND    },
+    [TOKEN_CLASS]       = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_ELSE]        = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_FALSE]       = { literal,    NULL,   PREC_NONE   },
+    [TOKEN_FOR]         = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_FUN]         = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_IF]          = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_NIL]         = { literal,    NULL,   PREC_NONE   },
+    [TOKEN_OR]          = { NULL,       or_op,  PREC_OR     },
+    [TOKEN_PRINT]       = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_RETURN]      = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_SUPER]       = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_THIS]        = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_TRUE]        = { literal,    NULL,   PREC_NONE   },
+    [TOKEN_VAR]         = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_WHILE]       = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_ERROR]       = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_EOF]         = { NULL,       NULL,   PREC_NONE   },
 };
 
 static ParseRule *get_rule(TokenType type)

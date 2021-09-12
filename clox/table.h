@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "value.h"
-#include "object.h"
 
 typedef struct {
     Value key;

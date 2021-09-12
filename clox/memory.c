@@ -59,6 +59,17 @@ static void mark_black(Obj *obj)
             gc_mark_obj((Obj *)closure->upvalues[i]);
         break;
     }
+    case OBJ_CLASS: {
+        ObjClass *klass = (ObjClass *)obj;
+        gc_mark_obj((Obj *) klass->name);
+        break;
+    }
+    case OBJ_INSTANCE: {
+        ObjInstance *inst = (ObjInstance *)obj;
+        gc_mark_obj((Obj *)inst->klass);
+        gc_mark_table(&inst->fields);
+        break;
+    }
     }
 }
 

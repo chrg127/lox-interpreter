@@ -113,6 +113,15 @@ ObjNative *obj_make_native(NativeFn fun, const char *name, u8 arity)
     return native;
 }
 
+ObjUpvalue *obj_make_upvalue(Value *slot)
+{
+    ObjUpvalue *upvalue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
+    upvalue->location = slot;
+    upvalue->closed   = VALUE_MKNIL();
+    upvalue->next     = NULL;
+    return upvalue;
+}
+
 ObjClosure *obj_make_closure(ObjFunction *fun)
 {
     ObjUpvalue **upvalues = ALLOCATE(ObjUpvalue *, fun->upvalue_count);
@@ -125,13 +134,19 @@ ObjClosure *obj_make_closure(ObjFunction *fun)
     return closure;
 }
 
-ObjUpvalue *obj_make_upvalue(Value *slot)
+ObjClass *obj_make_class(ObjString *name)
 {
-    ObjUpvalue *upvalue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
-    upvalue->location = slot;
-    upvalue->closed   = VALUE_MKNIL();
-    upvalue->next     = NULL;
-    return upvalue;
+    ObjClass *klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
+    klass->name = name;
+    return klass;
+}
+
+ObjInstance *obj_make_instance(ObjClass *klass)
+{
+    ObjInstance *inst = ALLOCATE_OBJ(ObjInstance, OBJ_INSTANCE);
+    inst->klass = klass;
+    table_init(&inst->fields);
+    return inst;
 }
 
 void obj_print(Value value)
@@ -142,6 +157,16 @@ void obj_print(Value value)
     case OBJ_NATIVE: printf("<native fn '%s'>", ((ObjNative *)AS_OBJ(value))->name); break;
     case OBJ_CLOSURE: print_function(AS_CLOSURE(value)->fun); break;
     case OBJ_UPVALUE: printf("upvalue"); break;
+    case OBJ_CLASS:
+        printf("<class ");
+        obj_print(VALUE_MKOBJ(AS_CLASS(value)->name));
+        printf(">");
+        break;
+    case OBJ_INSTANCE:
+        printf("<instance of class ");
+        obj_print(VALUE_MKOBJ(AS_INSTANCE(value)->klass->name));
+        printf(">");
+        break;
     }
 }
 
@@ -176,6 +201,16 @@ void obj_free(Obj *obj)
     case OBJ_UPVALUE:
         FREE(ObjUpvalue, obj);
         break;
+    case OBJ_CLASS: {
+        FREE(ObjClass, obj);
+        break;
+    }
+    case OBJ_INSTANCE: {
+        ObjInstance *inst = (ObjInstance *)obj;
+        table_free(&inst->fields);
+        FREE(ObjInstance, obj);
+        break;
+    }
     }
 }
 
