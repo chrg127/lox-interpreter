@@ -286,13 +286,13 @@ static VMResult run()
             ObjInstance *inst = AS_INSTANCE(peek(0));
             ObjString *name = READ_STRING();
             Value value;
-            if (table_lookup(&inst->fields, name, &value)) {
-                vm_pop();
-                vm_push(value);
-                break;
+            if (!table_lookup(&inst->fields, name, &value)) {
+                runtime_error("undefined property '%s'", name->data);
+                return VM_RUNTIME_ERROR;
             }
 
-            runtime_error("undefined property '%s'", name->data);
+            vm_pop();
+            vm_push(value);
             break;
         }
         case OP_SET_PROPERTY: {
