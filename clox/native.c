@@ -47,3 +47,19 @@ NativeResult native_has_field(int argc, Value *argv)
     bool res = table_lookup(&inst->fields, name, &value);
     return NATIVE_MKRES(VALUE_MKBOOL(res));
 }
+
+NativeResult native_del_field(int argc, Value *argv)
+{
+    if (!IS_INSTANCE(argv[0])) {
+        native_runtime_error("del_field", "invalid parameter: not an instance value");
+        return NATIVE_MKERR();
+    }
+    if (!IS_STRING(argv[1])) {
+        native_runtime_error("del_field", "invalid parameter: not a string value");
+        return NATIVE_MKERR();
+    }
+    ObjInstance *inst = AS_INSTANCE(argv[0]);
+    ObjString *name = AS_STRING(argv[1]);
+    table_delete(&inst->fields, name);
+    return NATIVE_MKRES(VALUE_MKNIL());
+}

@@ -33,8 +33,7 @@ static inline bool table_lookup(Table *tab, ObjString *key, Value *value) { retu
 static inline bool table_delete(Table *tab, ObjString *key)               { return table_delete_value(tab, VALUE_MKOBJ(key)); }
 
 void table_add_all(Table *from, Table *to);
-ObjString *table_find_string(Table *tab, const char *data, size_t len,
-                             u32 hash);
+ObjString *table_find_string(Table *tab, const char *data, size_t len, u32 hash);
 
 #define TABLE_FOR_EACH(tab, entry) \
     for (Entry *entry = tab->entries; ((size_t) (entry - tab->entries)) < tab->cap; entry++)

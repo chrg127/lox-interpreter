@@ -462,6 +462,7 @@ void vm_init()
     define_native("str", native_tostr, 1);
     define_native("typeof", native_typeof, 1);
     define_native("has_field", native_has_field, 2);
+    define_native("del_field", native_del_field, 2);
 }
 
 void vm_free()

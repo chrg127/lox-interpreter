@@ -19,5 +19,6 @@ NativeResult native_sqrt(int argc, Value *argv);
 NativeResult native_tostr(int argc, Value *argv);
 NativeResult native_typeof(int argc, Value *argv);
 NativeResult native_has_field(int argc, Value *argv);
+NativeResult native_del_field(int argc, Value *argv);
 
 #endif
