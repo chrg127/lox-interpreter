@@ -131,6 +131,11 @@ static bool call_value(Value callee, u8 argc)
             return true;
         case OBJ_CLOSURE:
             return call(AS_CLOSURE(callee), argc);
+        case OBJ_CLASS: {
+            ObjClass *klass = AS_CLASS(callee);
+            vm.sp[-argc-1] = VALUE_MKOBJ(obj_make_instance(klass));
+            return true;
+        }
         }
         default:
             break;
@@ -272,6 +277,37 @@ static VMResult run()
             *frame->closure->upvalues[slot]->location = peek(0);
             break;
         }
+        case OP_GET_PROPERTY: {
+            if (!IS_INSTANCE(peek(0))) {
+                runtime_error("attempt to get a property from a non-instance value");
+                return VM_RUNTIME_ERROR;
+            }
+
+            ObjInstance *inst = AS_INSTANCE(peek(0));
+            ObjString *name = READ_STRING();
+            Value value;
+            if (table_lookup(&inst->fields, name, &value)) {
+                vm_pop();
+                vm_push(value);
+                break;
+            }
+
+            runtime_error("undefined property '%s'", name->data);
+            break;
+        }
+        case OP_SET_PROPERTY: {
+            if (!IS_INSTANCE(peek(1))) {
+                runtime_error("attempt to get a property from a non-instance value");
+                return VM_RUNTIME_ERROR;
+            }
+
+            ObjInstance *inst = AS_INSTANCE(peek(1));
+            table_install(&inst->fields, READ_STRING(), peek(0));
+            Value value = vm_pop();
+            vm_pop();
+            vm_push(value);
+            break;
+        }
         case OP_EQ: {
             Value b = vm_pop();
             Value a = vm_pop();
@@ -362,6 +398,9 @@ static VMResult run()
         case OP_CLOSE_UPVALUE:
             close_upvalues(vm.sp - 1);
             vm_pop();
+            break;
+        case OP_CLASS:
+            vm_push(VALUE_MKOBJ(obj_make_class(READ_STRING())));
             break;
         default:
             runtime_error("unknown opcode: %d", instr);

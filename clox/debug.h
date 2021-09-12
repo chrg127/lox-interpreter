@@ -5,8 +5,8 @@
 
 #define DEBUG_PRINT_CODE
 #define DEBUG_TRACE_EXECUTION
-#define DEBUG_STRESS_GC
-#define DEBUG_LOC_GC
+// #define DEBUG_STRESS_GC
+// #define DEBUG_LOC_GC
 
 #endif
 

@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include "chunk.h"
 #include "uint.h"
+#include "object.h"
 #include "table.h"
 #include "value.h"
 #include "vector.h"

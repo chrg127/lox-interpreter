@@ -4,6 +4,7 @@
 #include <string.h>
 #include "memory.h"
 #include "vector.h"
+#include "object.h"
 
 #define TABLE_MAX_LOAD 0.75
 

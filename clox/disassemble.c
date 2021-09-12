@@ -83,6 +83,8 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_SET_LOCAL:      return byte_instr("stl", chunk, offset);
     case OP_GET_UPVALUE:    return byte_instr("ldu", chunk, offset);
     case OP_SET_UPVALUE:    return byte_instr("stu", chunk, offset);
+    case OP_GET_PROPERTY:   return const_instr("ldp", chunk, offset);
+    case OP_SET_PROPERTY:   return const_instr("stp", chunk, offset);
     case OP_EQ:             return simple_instr("cme", offset);
     case OP_GREATER:        return simple_instr("cmg", offset);
     case OP_LESS:           return simple_instr("cml", offset);
@@ -99,6 +101,7 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_RETURN:         return simple_instr("ret", offset);
     case OP_CLOSURE:        return closure_instr("clo", chunk, offset);
     case OP_CLOSE_UPVALUE:  return simple_instr("clu", offset);
+    case OP_CLASS:          return const_instr("cls", chunk, offset);
     default:
         printf("[unknown] [%d]", instr);
         return offset + 1;
