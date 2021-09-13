@@ -193,9 +193,9 @@ static void emit_u16(u8 b1, u16 b2)         { emit_three(b1, b2 & 0xFF, (b2 >> 8
 static void emit_return()
 {
     if (curr->type == TYPE_CTOR)
-        emit_two(OP_GET_LOCAL, 0);
+        emit_u16(OP_GET_LOCAL, 0);
     else
-        emit_two(OP_NIL, OP_RETURN);
+        emit_byte(OP_NIL);
     emit_byte(OP_RETURN);
 }
 

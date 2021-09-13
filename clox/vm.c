@@ -502,9 +502,11 @@ static VMResult run()
         case OP_INVOKE: {
             ObjString *method = READ_STRING();
             u8 argc = READ_BYTE();
+            frame->ip = vm.ip;
             if (!invoke(method, argc))
                 return VM_RUNTIME_ERROR;
             frame = &vm.frames[vm.frame_size-1];
+            vm.ip = frame->ip;
             break;
         }
         case OP_RETURN: {

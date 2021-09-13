@@ -15,16 +15,16 @@ class Vec {
 
     add(v)
     {
-        x = x + v.x;
-        y = y + v.y;
-        z = z + v.z;
+        this.x = this.x + v.x;
+        this.y = this.y + v.y;
+        this.z = this.z + v.z;
     }
 
     mul(v)
     {
-        x = x * v.x;
-        y = y * v.y;
-        z = z * v.z;
+        this.x = this.x * v.x;
+        this.y = this.y * v.y;
+        this.z = this.z * v.z;
     }
 
     to_string()
@@ -33,7 +33,7 @@ class Vec {
     }
 }
 
-v1 = Vec(3, 4, 5);
-v2 = Vec(1, 8, 7);
+var v1 = Vec(3, 4, 5);
+var v2 = Vec(1, 8, 7);
 v1.add(v2);
 print v1.to_string();
