@@ -138,6 +138,7 @@ ObjClass *obj_make_class(ObjString *name)
 {
     ObjClass *klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
     klass->name = name;
+    table_init(&klass->methods);
     return klass;
 }
 
@@ -147,6 +148,14 @@ ObjInstance *obj_make_instance(ObjClass *klass)
     inst->klass = klass;
     table_init(&inst->fields);
     return inst;
+}
+
+ObjBoundMethod *obj_make_bound_method(Value receiver, ObjClosure *method)
+{
+    ObjBoundMethod *bound = ALLOCATE_OBJ(ObjBoundMethod, OBJ_BOUND_METHOD);
+    bound->receiver = receiver;
+    bound->method = method;
+    return bound;
 }
 
 void obj_print(Value value)
@@ -167,6 +176,7 @@ void obj_print(Value value)
         obj_print(VALUE_MKOBJ(AS_INSTANCE(value)->klass->name));
         printf(">");
         break;
+    case OBJ_BOUND_METHOD: print_function(AS_BOUND_METHOD(value)->method->fun); break;
     }
 }
 
@@ -202,6 +212,8 @@ void obj_free(Obj *obj)
         FREE(ObjUpvalue, obj);
         break;
     case OBJ_CLASS: {
+        ObjClass *klass = (ObjClass *)obj;
+        table_free(&klass->methods);
         FREE(ObjClass, obj);
         break;
     }
@@ -211,6 +223,9 @@ void obj_free(Obj *obj)
         FREE(ObjInstance, obj);
         break;
     }
+    case OBJ_BOUND_METHOD:
+        FREE(ObjBoundMethod, obj);
+        break;
     }
 }
 

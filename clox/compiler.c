@@ -10,6 +10,7 @@
 #include "table.h"
 #include "memory.h"
 #include "debug.h"
+#include "list.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "disassemble.h"
@@ -58,6 +59,8 @@ typedef struct {
 
 typedef enum {
     TYPE_FUNCTION,
+    TYPE_CTOR,
+    TYPE_METHOD,
     TYPE_SCRIPT,
 } FunctionType;
 
@@ -80,8 +83,13 @@ typedef struct Compiler {
     Upvalue upvalues[UPVALUE_COUNT]; // count for upvalues is kept in fun
 } Compiler;
 
+typedef struct ClassCompiler {
+    struct ClassCompiler *enclosing;
+} ClassCompiler;
+
 Parser parser;
 Compiler *curr = NULL;
+ClassCompiler *curr_class = NULL;
 Table global_consts;
 
 
@@ -181,7 +189,14 @@ static void emit_byte(u8 byte)
 static void emit_two(u8 b1, u8 b2)          { emit_byte(b1); emit_byte(b2); }
 static void emit_three(u8 b1, u8 b2, u8 b3) { emit_byte(b1); emit_byte(b2); emit_byte(b3); }
 static void emit_u16(u8 b1, u16 b2)         { emit_three(b1, b2 & 0xFF, (b2 >> 8) & 0xFF); }
-static void emit_return()                   { emit_two(OP_NIL, OP_RETURN); }
+
+static void emit_return()
+{
+    if (curr->type == TYPE_CTOR)
+        emit_two(OP_GET_LOCAL, 0);
+    else
+        emit_two(OP_NIL, OP_RETURN);
+}
 
 static u16 make_constant(Value value)
 {
@@ -224,24 +239,30 @@ static void emit_loop(size_t loop_start)
 
 static void compiler_init(Compiler *compiler, FunctionType type)
 {
-    compiler->enclosing = curr;
-    compiler->fun = NULL;
     compiler->type = type;
     compiler->local_count = 0;
     compiler->scope_depth = 0;
     compiler->inside_loop = false;
     compiler->loop_start = 0;
     // we assign NULL to function first due to garbage collection
+    compiler->fun = NULL;
     compiler->fun = obj_make_fun();
-    curr = compiler;
+
+    LIST_APPEND(compiler, curr, enclosing);
+
     if (type != TYPE_SCRIPT)
         curr->fun->name = obj_copy_string(parser.prev.start, parser.prev.len);
 
     Local *local = &curr->locals[curr->local_count++];
     local->depth       = 0;
-    local->name.start  = "";
-    local->name.len    = 0;
     local->is_captured = false;
+    if (type != TYPE_FUNCTION) {
+        local->name.start = "this";
+        local->name.len   = 4;
+    } else {
+        local->name.start = "";
+        local->name.len   = 0;
+    }
 }
 
 static ObjFunction *compiler_end()
@@ -455,15 +476,70 @@ static void fun_decl()
     define_var(global);
 }
 
+static void named_var(Token name, bool can_assign)
+{
+    u8 getop, setop;
+    bool is_const;
+    int arg = resolve_local(curr, &name);
+
+    if (arg != -1) {
+        getop = OP_GET_LOCAL;
+        setop = OP_SET_LOCAL;
+        is_const = curr->locals[arg].is_const;
+    } else if (arg = resolve_upvalue(curr, &name), arg != -1) {
+        getop = OP_GET_UPVALUE;
+        setop = OP_SET_UPVALUE;
+        is_const = false;
+    } else {
+        arg = make_ident_constant(&name);
+        getop = OP_GET_GLOBAL;
+        setop = OP_SET_GLOBAL;
+        Value v;
+        is_const = table_lookup(&global_consts, token_to_string(&name), &v);
+    }
+
+    if (can_assign && match(TOKEN_EQ)) {
+        if (is_const) {
+            error("can't assign to const variable");
+            return;
+        }
+        expr();
+        emit_u16(setop, arg);
+    } else
+        emit_u16(getop, arg);
+}
+
+static void method()
+{
+    consume(TOKEN_IDENT, "expected method name");
+    u16 constant = make_ident_constant(&parser.prev);
+    FunctionType type = TYPE_METHOD;
+    if (parser.prev.len == 4 && memcmp(parser.prev.start, "init", 4) == 0)
+        type = TYPE_CTOR;
+    function(type);
+    emit_u16(OP_METHOD, constant);
+}
+
 static void class_decl()
 {
     consume(TOKEN_IDENT, "expected class name");
+    Token class_name = parser.prev;
     u16 name_constant = make_ident_constant(&parser.prev);
     declare_var(false);
     emit_u16(OP_CLASS, name_constant);
     define_var(name_constant);
+
+    ClassCompiler compiler;
+    LIST_APPEND(&compiler, curr_class, enclosing);
+
+    named_var(class_name, false);
     consume(TOKEN_LEFT_BRACE, "expected '{' before class body");
+    while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF))
+        method();
     consume(TOKEN_RIGHT_BRACE, "expected '}' after class body");
+    emit_byte(OP_POP);
+
+    curr_class = curr_class->enclosing;
 }
 
 static void decl()
@@ -589,6 +665,8 @@ static void return_stmt()
     if (match(TOKEN_SEMICOLON))
         emit_return();
     else {
+        if (curr->type == TYPE_CTOR)
+            error("can't return value from constructor");
         expr();
         consume(TOKEN_SEMICOLON, "expected semicolon after return expression");
         emit_byte(OP_RETURN);
@@ -765,6 +843,10 @@ static void dot(bool can_assign)
     if (can_assign && match(TOKEN_EQ)) {
         expr();
         emit_u16(OP_SET_PROPERTY, name);
+    } else if (match(TOKEN_LEFT_PAREN)) {
+        u8 argc = arglist();
+        emit_u16(OP_INVOKE, name);
+        emit_byte(argc);
     } else
         emit_u16(OP_GET_PROPERTY, name);
 }
@@ -808,42 +890,18 @@ static void grouping(bool can_assign)
     consume(TOKEN_RIGHT_PAREN, "expected ')' at end of grouping expression");
 }
 
-static void named_var(Token name, bool can_assign)
-{
-    u8 getop, setop;
-    bool is_const;
-    int arg = resolve_local(curr, &name);
-
-    if (arg != -1) {
-        getop    = OP_GET_LOCAL;
-        setop    = OP_SET_LOCAL;
-        is_const = curr->locals[arg].is_const;
-    } else if (arg = resolve_upvalue(curr, &name), arg != -1) {
-        getop    = OP_GET_UPVALUE;
-        setop    = OP_SET_UPVALUE;
-        is_const = false;
-    } else {
-        arg      = make_ident_constant(&name);
-        getop    = OP_GET_GLOBAL;
-        setop    = OP_SET_GLOBAL;
-        Value v;
-        is_const = table_lookup(&global_consts, token_to_string(&name), &v);
-    }
-
-    if (can_assign && match(TOKEN_EQ)) {
-        if (is_const) {
-            error("can't assign to const variable");
-            return;
-        }
-        expr();
-        emit_u16(setop, arg);
-    } else
-        emit_u16(getop, arg);
-}
-
 static void variable(bool can_assign)
 {
     named_var(parser.prev, can_assign);
+}
+
+static void this_op(bool can_assign)
+{
+    if (curr_class == NULL) {
+        error("can't use 'this' outside of a class");
+        return;
+    }
+    variable(false);
 }
 
 static ParseRule rules[] = {
@@ -883,7 +941,7 @@ static ParseRule rules[] = {
     [TOKEN_PRINT]       = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_RETURN]      = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_SUPER]       = { NULL,       NULL,   PREC_NONE   },
-    [TOKEN_THIS]        = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_THIS]        = { this_op,    NULL,   PREC_NONE   },
     [TOKEN_TRUE]        = { literal,    NULL,   PREC_NONE   },
     [TOKEN_VAR]         = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_WHILE]       = { NULL,       NULL,   PREC_NONE   },

@@ -17,6 +17,7 @@ typedef enum {
     OBJ_CLOSURE,
     OBJ_CLASS,
     OBJ_INSTANCE,
+    OBJ_BOUND_METHOD,
 } ObjType;
 
 struct Obj {
@@ -64,6 +65,7 @@ typedef struct {
 typedef struct {
     Obj obj;
     ObjString *name;
+    Table methods;
 } ObjClass;
 
 typedef struct {
@@ -71,6 +73,12 @@ typedef struct {
     ObjClass *klass;
     Table fields;
 } ObjInstance;
+
+typedef struct {
+    Obj obj;
+    Value receiver;
+    ObjClosure *method;
+} ObjBoundMethod;
 
 #define OBJ_TYPE(value)     (AS_OBJ(value)->type)
 
@@ -85,6 +93,7 @@ static inline bool obj_is_type(Value value, ObjType type)
 #define IS_CLOSURE(value)   obj_is_type((value), OBJ_CLOSURE)
 #define IS_CLASS(value)     obj_is_type((value), OBJ_CLASS)
 #define IS_INSTANCE(value)  obj_is_type((value), OBJ_INSTANCE)
+#define IS_BOUND_METHOD(value) obj_is_type((value), OBJ_BOUND_METHOD)
 
 #define AS_STRING(value)    ((ObjString *)   AS_OBJ(value))
 #define AS_CSTRING(value)   (((ObjString *)  AS_OBJ(value))->data)
@@ -94,6 +103,7 @@ static inline bool obj_is_type(Value value, ObjType type)
 #define AS_CLOSURE(value)   ((ObjClosure *)  AS_OBJ(value))
 #define AS_CLASS(value)     ((ObjClass *)    AS_OBJ(value))
 #define AS_INSTANCE(value)  ((ObjInstance *) AS_OBJ(value))
+#define AS_BOUND_METHOD(value) ((ObjBoundMethod *) AS_OBJ(value))
 
 ObjString *obj_copy_string(const char *str, size_t len);
 ObjString *obj_take_string(char *data, size_t len);
@@ -103,6 +113,7 @@ ObjUpvalue *obj_make_upvalue(Value *slot);
 ObjClosure *obj_make_closure(ObjFunction *fun);
 ObjClass *obj_make_class(ObjString *name);
 ObjInstance *obj_make_instance(ObjClass *klass);
+ObjBoundMethod *obj_make_bound_method(Value receiver, ObjClosure *method);
 void obj_print(Value value);
 void obj_free(Obj *obj);
 void obj_free_arr(Obj *objects);

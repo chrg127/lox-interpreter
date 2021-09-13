@@ -23,6 +23,7 @@ static void mark_roots()
         gc_mark_obj((Obj *) upvalue);
     gc_mark_table(&vm.globals);
     compiler_mark_roots();
+    gc_mark_obj((Obj *)vm.init_string);
 }
 
 static void gc_mark_arr(ValueArray *arr)
@@ -62,12 +63,19 @@ static void mark_black(Obj *obj)
     case OBJ_CLASS: {
         ObjClass *klass = (ObjClass *)obj;
         gc_mark_obj((Obj *) klass->name);
+        gc_mark_table(&klass->methods);
         break;
     }
     case OBJ_INSTANCE: {
         ObjInstance *inst = (ObjInstance *)obj;
         gc_mark_obj((Obj *)inst->klass);
         gc_mark_table(&inst->fields);
+        break;
+    }
+    case OBJ_BOUND_METHOD: {
+        ObjBoundMethod *bound = (ObjBoundMethod *)obj;
+        gc_mark_value(bound->receiver);
+        gc_mark_obj((Obj *)bound->method);
         break;
     }
     }

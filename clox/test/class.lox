@@ -1,0 +1,39 @@
+class Vec {
+    init()
+    {
+        this.x = 0;
+        this.y = 0;
+        this.z = 0;
+    }
+
+    init(x, y, z)
+    {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+
+    add(v)
+    {
+        x = x + v.x;
+        y = y + v.y;
+        z = z + v.z;
+    }
+
+    mul(v)
+    {
+        x = x * v.x;
+        y = y * v.y;
+        z = z * v.z;
+    }
+
+    to_string()
+    {
+        return str(this.x) + ", " + str(this.y) + ", " + str(this.z);
+    }
+}
+
+v1 = Vec(3, 4, 5);
+v2 = Vec(1, 8, 7);
+v1.add(v2);
+print v1.to_string();

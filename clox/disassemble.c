@@ -71,6 +71,16 @@ static size_t closure_instr(const char *name, Chunk *chunk, size_t offset)
     return offset;
 }
 
+static size_t invoke_instr(const char *name, Chunk *chunk, size_t offset)
+{
+    u16 constant = chunk->code[offset + 1];
+    u8 argc      = chunk->code[offset + 2];
+    printf("%s (%03d args) %05d '", name, argc, constant);
+    value_print(chunk->constants.values[constant]);
+    printf("'\n");
+    return offset + 3;
+}
+
 void disassemble(Chunk *chunk, const char *name)
 {
     printf("=== %s ===\n", name);
@@ -120,10 +130,12 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_BRANCH_FALSE:   return jump_instr("bfl",  1, chunk, offset);
     case OP_BRANCH_BACK:    return jump_instr("bbw", -1, chunk, offset);
     case OP_CALL:           return byte_instr("cal", chunk, offset);
+    case OP_INVOKE:         return invoke_instr("ivk", chunk, offset);
     case OP_RETURN:         return simple_instr("ret", offset);
     case OP_CLOSURE:        return closure_instr("clo", chunk, offset);
     case OP_CLOSE_UPVALUE:  return simple_instr("clu", offset);
     case OP_CLASS:          return const_long_instr("cls", chunk, offset);
+    case OP_METHOD:         return const_long_instr("met", chunk, offset);
     default:
         printf("[unknown] [%d]", instr);
         return offset + 1;
