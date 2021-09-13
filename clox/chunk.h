@@ -34,10 +34,12 @@ typedef enum {
     OP_BRANCH_FALSE,
     OP_BRANCH_BACK,
     OP_CALL,
+    OP_INVOKE,
     OP_RETURN,
     OP_CLOSURE,
     OP_CLOSE_UPVALUE,
     OP_CLASS,
+    OP_METHOD,
 } Opcode;
 
 typedef struct {

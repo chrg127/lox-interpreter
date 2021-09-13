@@ -134,7 +134,19 @@ static bool call_value(Value callee, u8 argc)
         case OBJ_CLASS: {
             ObjClass *klass = AS_CLASS(callee);
             vm.sp[-argc-1] = VALUE_MKOBJ(obj_make_instance(klass));
+            Value ctor;
+            if (table_lookup(&klass->methods, vm.init_string, &ctor))
+                return call(AS_CLOSURE(ctor), argc);
+            else if (argc != 0) {
+                runtime_error("expected 0 arguments, got %d", argc);
+                return false;
+            }
             return true;
+        }
+        case OBJ_BOUND_METHOD: {
+            ObjBoundMethod *bound = AS_BOUND_METHOD(callee);
+            vm.sp[-argc-1] = bound->receiver;
+            return call(bound->method, argc);
         }
         }
         default:
@@ -143,6 +155,33 @@ static bool call_value(Value callee, u8 argc)
     }
     runtime_error("attempt to call non-callable object");
     return false;
+}
+
+static bool invoke_from_class(ObjClass *klass, ObjString *name, u8 argc)
+{
+    Value method;
+    if (!table_lookup(&klass->methods, name, &method)) {
+        runtime_error("undefined property '%s'", name->data);
+        return false;
+    }
+    return call(AS_CLOSURE(method), argc);
+}
+
+static bool invoke(ObjString *name, u8 argc)
+{
+    Value receiver = peek(argc);
+    if (!IS_INSTANCE(receiver)) {
+        runtime_error("can't call a method on a non-instance value");
+        return false;
+    }
+
+    ObjInstance *inst = AS_INSTANCE(receiver);
+    Value value;
+    if (table_lookup(&inst->fields, name, &value)) {
+        vm.sp[-argc-1] = value;
+        return call_value(value, argc);
+    }
+    return invoke_from_class(inst->klass, name, argc);
 }
 
 static ObjUpvalue *capture_upvalue(Value *local)
@@ -172,6 +211,25 @@ static void close_upvalues(Value *last)
         upvalue->location = &upvalue->closed;
         vm.open_upvalues  = upvalue->next;
     }
+}
+
+static void define_method(ObjString *name)
+{
+    Value method = peek(0);
+    ObjClass *klass = AS_CLASS(peek(1));
+    table_install(&klass->methods, name, method);
+    vm_pop();
+}
+
+static bool bind_method(ObjClass *klass, ObjString *name)
+{
+    Value method;
+    if (!table_lookup(&klass->methods, name, &method))
+        return false;
+    ObjBoundMethod *bound = obj_make_bound_method(peek(0), AS_CLOSURE(method));
+    vm_pop();
+    vm_push(VALUE_MKOBJ(bound));
+    return true;
 }
 
 static void define_native(const char *name, NativeFn fun)
@@ -286,14 +344,18 @@ static VMResult run()
             ObjInstance *inst = AS_INSTANCE(peek(0));
             ObjString *name = READ_STRING();
             Value value;
-            if (!table_lookup(&inst->fields, name, &value)) {
-                runtime_error("undefined property '%s'", name->data);
-                return VM_RUNTIME_ERROR;
+            // field?
+            if (table_lookup(&inst->fields, name, &value)) {
+                vm_pop();
+                vm_push(value);
+                break;
             }
+            // method?
+            if (bind_method(inst->klass, name))
+                break;
 
-            vm_pop();
-            vm_push(value);
-            break;
+            runtime_error("undefined property '%s'", name->data);
+            return VM_RUNTIME_ERROR;
         }
         case OP_SET_PROPERTY: {
             if (!IS_INSTANCE(peek(1))) {
@@ -368,6 +430,14 @@ static VMResult run()
             frame = &vm.frames[vm.frame_size - 1];
             break;
         }
+        case OP_INVOKE: {
+            ObjString *method = READ_STRING();
+            u8 argc = READ_BYTE();
+            if (!invoke(method, argc))
+                return VM_RUNTIME_ERROR;
+            frame = &vm.frames[vm.frame_size-1];
+            break;
+        }
         case OP_RETURN: {
             Value result = vm_pop();
             close_upvalues(frame->slots);
@@ -402,6 +472,9 @@ static VMResult run()
         case OP_CLASS:
             vm_push(VALUE_MKOBJ(obj_make_class(READ_STRING())));
             break;
+        case OP_METHOD:
+            define_method(READ_STRING());
+            break;
         default:
             runtime_error("unknown opcode: %d", instr);
             return VM_RUNTIME_ERROR;
@@ -423,6 +496,8 @@ void vm_init()
     vm.next_gc = 1024 * 1024;
     table_init(&vm.globals);
     table_init(&vm.strings);
+    vm.init_string = NULL;
+    vm.init_string = obj_copy_string("init", 4);
     graystack_init(&vm.gray_stack);
     define_native("clock", clock_native);
 }
@@ -432,6 +507,7 @@ void vm_free()
     table_free(&vm.globals);
     table_free(&vm.strings);
     obj_free_arr(vm.objects);
+    vm.init_string = NULL;
     free(vm.gray_stack.stack);
 }
 

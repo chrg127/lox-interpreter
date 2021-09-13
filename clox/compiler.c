@@ -53,6 +53,8 @@ typedef struct {
 
 typedef enum {
     TYPE_FUNCTION,
+    TYPE_CTOR,
+    TYPE_METHOD,
     TYPE_SCRIPT,
 } FunctionType;
 
@@ -66,7 +68,12 @@ typedef struct Compiler {
     Upvalue upvalues[UPVALUE_COUNT]; // count for upvalues is kept in fun
 } Compiler;
 
+typedef struct ClassCompiler {
+    struct ClassCompiler *enclosing;
+} ClassCompiler;
+
 Compiler *curr = NULL;
+ClassCompiler *curr_class = NULL;
 
 struct {
     Token curr, prev;
@@ -171,7 +178,14 @@ static void emit_byte(u8 byte)
 }
 
 static void emit_two(u8 b1, u8 b2)  { emit_byte(b1); emit_byte(b2); }
-static void emit_return()           { emit_two(OP_NIL, OP_RETURN); }
+
+static void emit_return()
+{
+    if (curr->type == TYPE_CTOR)
+        emit_two(OP_GET_LOCAL, 0);
+    else
+        emit_two(OP_NIL, OP_RETURN);
+}
 
 static u8 make_constant(Value value)
 {
@@ -225,9 +239,14 @@ static void compiler_init(Compiler *compiler, FunctionType type)
 
     Local *local = &curr->locals[curr->local_count++];
     local->depth       = 0;
-    local->name.start  = "";
-    local->name.len    = 0;
     local->is_captured = false;
+    if (type != TYPE_FUNCTION) {
+        local->name.start = "this";
+        local->name.len   = 4;
+    } else {
+        local->name.start = "";
+        local->name.len   = 0;
+    }
 }
 
 static ObjFunction *compiler_end()
@@ -430,15 +449,62 @@ static void fun_decl()
     define_var(global);
 }
 
+static void named_var(Token name, bool can_assign)
+{
+    u8 getop, setop;
+    int arg = resolve_local(curr, &name);
+
+    if (arg != -1) {
+        getop = OP_GET_LOCAL;
+        setop = OP_SET_LOCAL;
+    } else if (arg = resolve_upvalue(curr, &name), arg != -1) {
+        getop = OP_GET_UPVALUE;
+        setop = OP_SET_UPVALUE;
+    } else {
+        arg = make_ident_constant(&name);
+        getop = OP_GET_GLOBAL;
+        setop = OP_SET_GLOBAL;
+    }
+
+    if (can_assign && match(TOKEN_EQ)) {
+        expr();
+        emit_two(setop, arg);
+    } else
+        emit_two(getop, arg);
+}
+
+static void method()
+{
+    consume(TOKEN_IDENT, "expected method name");
+    u8 constant = make_ident_constant(&parser.prev);
+    FunctionType type = TYPE_METHOD;
+    if (parser.prev.len == 4 && memcmp(parser.prev.start, "init", 4) == 0)
+        type = TYPE_CTOR;
+    function(type);
+    emit_two(OP_METHOD, constant);
+}
+
 static void class_decl()
 {
     consume(TOKEN_IDENT, "expected class name");
+    Token class_name = parser.prev;
     u8 name_constant = make_ident_constant(&parser.prev);
     declare_var();
     emit_two(OP_CLASS, name_constant);
     define_var(name_constant);
+
+    ClassCompiler compiler;
+    compiler.enclosing = curr_class;
+    curr_class = &compiler;
+
+    named_var(class_name, false);
     consume(TOKEN_LEFT_BRACE, "expected '{' before class body");
+    while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF))
+        method();
     consume(TOKEN_RIGHT_BRACE, "expected '}' after class body");
+    emit_byte(OP_POP);
+
+    curr_class = curr_class->enclosing;
 }
 
 static void decl()
@@ -550,6 +616,8 @@ static void return_stmt()
     if (match(TOKEN_SEMICOLON))
         emit_return();
     else {
+        if (curr->type == TYPE_CTOR)
+            error("can't return value from constructor");
         expr();
         consume(TOKEN_SEMICOLON, "expected semicolon after return expression");
         emit_byte(OP_RETURN);
@@ -672,6 +740,10 @@ static void dot(bool can_assign)
     if (can_assign && match(TOKEN_EQ)) {
         expr();
         emit_two(OP_SET_PROPERTY, name);
+    } else if (match(TOKEN_LEFT_PAREN)) {
+        u8 argc = arglist();
+        emit_two(OP_INVOKE, name);
+        emit_byte(argc);
     } else
         emit_two(OP_GET_PROPERTY, name);
 }
@@ -716,33 +788,18 @@ static void grouping(bool can_assign)
     consume(TOKEN_RIGHT_PAREN, "expected ')' at end of grouping expression");
 }
 
-static void named_var(Token name, bool can_assign)
-{
-    u8 getop, setop;
-    int arg = resolve_local(curr, &name);
-
-    if (arg != -1) {
-        getop = OP_GET_LOCAL;
-        setop = OP_SET_LOCAL;
-    } else if (arg = resolve_upvalue(curr, &name), arg != -1) {
-        getop = OP_GET_UPVALUE;
-        setop = OP_SET_UPVALUE;
-    } else {
-        arg = make_ident_constant(&name);
-        getop = OP_GET_GLOBAL;
-        setop = OP_SET_GLOBAL;
-    }
-
-    if (can_assign && match(TOKEN_EQ)) {
-        expr();
-        emit_two(setop, arg);
-    } else
-        emit_two(getop, arg);
-}
-
 static void variable(bool can_assign)
 {
     named_var(parser.prev, can_assign);
+}
+
+static void this_op(bool can_assign)
+{
+    if (curr_class == NULL) {
+        error("can't use 'this' outside of a class");
+        return;
+    }
+    variable(false);
 }
 
 static ParseRule rules[] = {
@@ -780,7 +837,7 @@ static ParseRule rules[] = {
     [TOKEN_PRINT]       = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_RETURN]      = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_SUPER]       = { NULL,       NULL,   PREC_NONE   },
-    [TOKEN_THIS]        = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_THIS]        = { this_op,    NULL,   PREC_NONE   },
     [TOKEN_TRUE]        = { literal,    NULL,   PREC_NONE   },
     [TOKEN_VAR]         = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_WHILE]       = { NULL,       NULL,   PREC_NONE   },
