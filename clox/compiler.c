@@ -196,6 +196,7 @@ static void emit_return()
         emit_two(OP_GET_LOCAL, 0);
     else
         emit_two(OP_NIL, OP_RETURN);
+    emit_byte(OP_RETURN);
 }
 
 static u16 make_constant(Value value)
