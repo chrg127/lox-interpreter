@@ -55,7 +55,7 @@ static size_t invoke_instr(const char *name, Chunk *chunk, size_t offset)
 {
     u8 constant = chunk->code[offset + 1];
     u8 argc     = chunk->code[offset + 2];
-    printf("%s (%03d args) %03d '", argc, constant);
+    printf("%s (%03d args) %03d '", name, argc, constant);
     value_print(chunk->constants.values[constant]);
     printf("'\n");
     return offset + 3;

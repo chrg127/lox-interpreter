@@ -8,6 +8,7 @@
 #include "scanner.h"
 #include "memory.h"
 #include "debug.h"
+#include "list.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "disassemble.h"
@@ -226,14 +227,15 @@ static void emit_loop(size_t loop_start)
 
 static void compiler_init(Compiler *compiler, FunctionType type)
 {
-    compiler->enclosing = curr;
-    compiler->fun = NULL;
     compiler->type = type;
     compiler->local_count = 0;
     compiler->scope_depth = 0;
     // we assign NULL to function first due to garbage collection
+    compiler->fun = NULL;
     compiler->fun = obj_make_fun();
-    curr = compiler;
+
+    LIST_APPEND(compiler, curr, enclosing);
+
     if (type != TYPE_SCRIPT)
         curr->fun->name = obj_copy_string(parser.prev.start, parser.prev.len);
 
@@ -494,8 +496,7 @@ static void class_decl()
     define_var(name_constant);
 
     ClassCompiler compiler;
-    compiler.enclosing = curr_class;
-    curr_class = &compiler;
+    LIST_APPEND(&compiler, curr_class, enclosing);
 
     named_var(class_name, false);
     consume(TOKEN_LEFT_BRACE, "expected '{' before class body");
