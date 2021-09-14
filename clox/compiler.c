@@ -940,16 +940,16 @@ static void super_op(bool can_assign)
         error("'super' inside class without superclass");
     consume(TOKEN_DOT, "expected '.' after 'super'");
     consume(TOKEN_IDENT, "expected superclass method name");
-    u8 name = make_ident_constant(&parser.prev);
+    u16 name = make_ident_constant(&parser.prev);
     named_var(synthetic_token("this"), false);
     if (match(TOKEN_LEFT_PAREN)) {
         u8 argc = arglist();
         named_var(synthetic_token("super"), false);
-        emit_two(OP_SUPER_INVOKE, name);
+        emit_u16(OP_SUPER_INVOKE, name);
         emit_byte(argc);
     } else {
         named_var(synthetic_token("super"), false);
-        emit_two(OP_GET_SUPER, name);
+        emit_u16(OP_GET_SUPER, name);
     }
 }
 
