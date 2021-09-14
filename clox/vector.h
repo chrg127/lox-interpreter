@@ -2,7 +2,7 @@
 #define VECTOR_H_INCLUDED
 
 #include <stddef.h>
-#include "memory.h"
+// #include "memory.h"
 #include "uint.h"
 
 #define VECTOR_INIT(v, data_name) \

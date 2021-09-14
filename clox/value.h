@@ -50,7 +50,7 @@ static inline double value_to_num(Value value)
 
 #define AS_BOOL(value)      ((value) == VALUE_TRUE)
 #define AS_NUM(value)       value_to_num(value)
-#define AS_OBJ(value)       ((Obj *)(uintptr_t)((value) & ~(SIGN_BIT | QNAN))
+#define AS_OBJ(value)       ((Obj *)(uintptr_t)((value) & ~(SIGN_BIT | QNAN)))
 
 #else
 
