@@ -70,6 +70,7 @@ typedef struct Compiler {
 } Compiler;
 
 typedef struct ClassCompiler {
+    bool has_super;
     struct ClassCompiler *enclosing;
 } ClassCompiler;
 
@@ -166,6 +167,14 @@ static bool match(TokenType type)
     return true;
 }
 
+static Token synthetic_token(const char *text)
+{
+    Token token = {
+        .start = text,
+        .len = strlen(text),
+    };
+    return token;
+}
 
 
 
@@ -394,6 +403,7 @@ static ParseRule *get_rule(TokenType type);
 static void stmt();
 static void expr();
 static void block();
+static void variable(bool can_assign);
 
 static u8 parse_var(const char *errmsg)
 {
@@ -497,7 +507,20 @@ static void class_decl()
     define_var(name_constant);
 
     ClassCompiler compiler;
+    compiler.has_super = false;
     LIST_APPEND(&compiler, curr_class, enclosing);
+
+    if (match(TOKEN_LESS)) {
+        consume(TOKEN_IDENT, "expected superclass name after '<'");
+        variable(false);
+        if (ident_equal(&class_name, &parser.prev))
+            error("a class can't inherit from itself");
+        begin_scope();
+        add_local(synthetic_token("super"));
+        define_var(0);
+        named_var(class_name, false);
+        emit_byte(OP_INHERIT);
+    }
 
     named_var(class_name, false);
     consume(TOKEN_LEFT_BRACE, "expected '{' before class body");
@@ -505,6 +528,9 @@ static void class_decl()
         method();
     consume(TOKEN_RIGHT_BRACE, "expected '}' after class body");
     emit_byte(OP_POP);
+
+    if (compiler.has_super)
+        end_scope();
 
     curr_class = curr_class->enclosing;
 }
@@ -804,6 +830,27 @@ static void this_op(bool can_assign)
     variable(false);
 }
 
+static void super_op(bool can_assign)
+{
+    if (curr_class == NULL)
+        error("'super' outside a class");
+    else if (!curr_class->has_super)
+        error("'super' inside class without superclass");
+    consume(TOKEN_DOT, "expected '.' after 'super'");
+    consume(TOKEN_IDENT, "expected superclass method name");
+    u8 name = make_ident_constant(&parser.prev);
+    named_var(synthetic_token("this"), false);
+    if (match(TOKEN_LEFT_PAREN)) {
+        u8 argc = arglist();
+        named_var(synthetic_token("super"), false);
+        emit_two(OP_SUPER_INVOKE, name);
+        emit_byte(argc);
+    } else {
+        named_var(synthetic_token("super"), false);
+        emit_two(OP_GET_SUPER, name);
+    }
+}
+
 static ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]  = { grouping,   call,   PREC_CALL   },
     [TOKEN_RIGHT_PAREN] = { NULL,       NULL,   PREC_NONE   },
@@ -838,7 +885,7 @@ static ParseRule rules[] = {
     [TOKEN_OR]          = { NULL,       or_op,  PREC_OR     },
     [TOKEN_PRINT]       = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_RETURN]      = { NULL,       NULL,   PREC_NONE   },
-    [TOKEN_SUPER]       = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_SUPER]       = { super_op,   NULL,   PREC_NONE   },
     [TOKEN_THIS]        = { this_op,    NULL,   PREC_NONE   },
     [TOKEN_TRUE]        = { literal,    NULL,   PREC_NONE   },
     [TOKEN_VAR]         = { NULL,       NULL,   PREC_NONE   },

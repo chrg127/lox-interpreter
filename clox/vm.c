@@ -362,12 +362,18 @@ static VMResult run()
                 runtime_error("attempt to get a property from a non-instance value");
                 return VM_RUNTIME_ERROR;
             }
-
             ObjInstance *inst = AS_INSTANCE(peek(1));
             table_install(&inst->fields, READ_STRING(), peek(0));
             Value value = vm_pop();
             vm_pop();
             vm_push(value);
+            break;
+        }
+        case OP_GET_SUPER: {
+            ObjString *name = READ_STRING();
+            ObjClass *superclass = AS_CLASS(pop());
+            if (!bind_method(superclass, name))
+                return VM_RUNTIME_ERROR;
             break;
         }
         case OP_EQ: {
@@ -438,6 +444,15 @@ static VMResult run()
             frame = &vm.frames[vm.frame_size-1];
             break;
         }
+        case OP_SUPER_INVOKE: {
+            ObjString *method = READ_STRING();
+            u8 argc = READ_BYTE();
+            ObjClass *superclass = AS_CLASS(vm_pop());
+            if (!invoke_from_class(superclass, method, argc))
+                return VM_RUNTIME_ERROR;
+            frame = &vm.frame[vm.frame_size-1];
+            break;
+        }
         case OP_RETURN: {
             Value result = vm_pop();
             close_upvalues(frame->slots);
@@ -475,6 +490,16 @@ static VMResult run()
         case OP_METHOD:
             define_method(READ_STRING());
             break;
+        case OP_INHERIT: {
+            Value superclass = peek(1);
+            if (!IS_CLASS(superclass)) {
+                runtime_error("superclass must be a class");
+                return VM_RUNTIME_ERROR;
+            }
+            ObjClass *subclass = AS_CLASS(peek(0));
+            table_add_all(&AS_CLASS(superclass)->methods, &subclass->methods);
+            break;
+        }
         default:
             runtime_error("unknown opcode: %d", instr);
             return VM_RUNTIME_ERROR;

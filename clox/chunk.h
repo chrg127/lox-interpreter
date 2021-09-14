@@ -20,6 +20,7 @@ typedef enum {
     OP_SET_UPVALUE,
     OP_GET_PROPERTY,
     OP_SET_PROPERTY,
+    OP_GET_SUPER,
     OP_EQ,
     OP_GREATER,
     OP_LESS,
@@ -35,11 +36,13 @@ typedef enum {
     OP_BRANCH_BACK,
     OP_CALL,
     OP_INVOKE,
+    OP_SUPER_INVOKE,
     OP_RETURN,
     OP_CLOSURE,
     OP_CLOSE_UPVALUE,
     OP_CLASS,
     OP_METHOD,
+    OP_INHERIT,
 } Opcode;
 
 typedef struct {
