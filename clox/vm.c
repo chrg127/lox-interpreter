@@ -371,7 +371,7 @@ static VMResult run()
         }
         case OP_GET_SUPER: {
             ObjString *name = READ_STRING();
-            ObjClass *superclass = AS_CLASS(pop());
+            ObjClass *superclass = AS_CLASS(vm_pop());
             if (!bind_method(superclass, name))
                 return VM_RUNTIME_ERROR;
             break;
@@ -450,7 +450,7 @@ static VMResult run()
             ObjClass *superclass = AS_CLASS(vm_pop());
             if (!invoke_from_class(superclass, method, argc))
                 return VM_RUNTIME_ERROR;
-            frame = &vm.frame[vm.frame_size-1];
+            frame = &vm.frames[vm.frame_size-1];
             break;
         }
         case OP_RETURN: {
