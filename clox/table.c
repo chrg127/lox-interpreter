@@ -52,7 +52,7 @@ static Entry *find_entry(Entry *entries, size_t cap, ObjString *key)
                 first_tombstone = ptr;
         } else if (objstr_cmp(ptr->key, key))
             return ptr;
-        i = (i + 1) % cap;
+        i = (i + 1) & (cap - 1);
     }
 }
 
@@ -149,7 +149,7 @@ ObjString *table_find_string(Table *tab, const char *data, size_t len,
 {
     if (tab->size == 0)
         return NULL;
-    u32 i = hash % tab->cap;
+    u32 i = hash & (tab->cap - 1);
     for (;;) {
         Entry *entry = &tab->entries[i];
         if (objstring_is_null(entry->key)) {
@@ -160,7 +160,7 @@ ObjString *table_find_string(Table *tab, const char *data, size_t len,
                 && memcmp(entry->key->data, data, len) == 0) {
             return entry->key;
         }
-        i = (i + 1) % tab->cap;
+        i = (i + 1) & (tab->cap - 1);
     }
 }
 

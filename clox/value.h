@@ -3,7 +3,56 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h> // memcpy
 #include "vector.h"
+
+#define NAN_BOXING
+
+typedef struct Obj Obj;
+typedef struct ObjString ObjString;
+
+#ifdef NAN_BOXING
+
+typedef u64 Value;
+
+#define QNAN        ((u64)0x7ffc000000000000)
+#define SIGN_BIT    ((u64)0x8000000000000000)
+#define TAG_NIL     1
+#define TAG_FALSE   2
+#define TAG_TRUE    3
+
+static inline Value num_to_value(double num)
+{
+    Value value;
+    memcpy(&value, &num, sizeof(double));
+    return value;
+}
+
+static inline double value_to_num(Value value)
+{
+    double num;
+    memcpy(&num, &value, sizeof(Value));
+    return num;
+}
+
+#define VALUE_FALSE         ((Value)(u64)(QNAN | TAG_FALSE))
+#define VALUE_TRUE          ((Value)(u64)(QNAN | TAG_FALSE))
+
+#define VALUE_MKBOOL(value) ((value) ? VALUE_TRUE : VALUE_FALSE)
+#define VALUE_MKNIL()       ((Value)(u64)(QNAN | TAG_NIL))
+#define VALUE_MKNUM(value)  num_to_value(value)
+#define VALUE_MKOBJ(value)  (Value)(SIGN_BIT | QNAN | (u64)(uintptr_t)(value))
+
+#define IS_BOOL(value)      (((value) | 1) == VALUE_TRUE)
+#define IS_NIL(value)       ((value) == VALUE_MKNIL())
+#define IS_NUM(value)       (((value) & QNAN) != QNAN)
+#define IS_OBJ(value)       (((value) & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT))
+
+#define AS_BOOL(value)      ((value) == VALUE_TRUE)
+#define AS_NUM(value)       value_to_num(value)
+#define AS_OBJ(value)       ((Obj *)(uintptr_t)((value) & ~(SIGN_BIT | QNAN))
+
+#else
 
 typedef enum {
     VAL_BOOL,
@@ -11,9 +60,6 @@ typedef enum {
     VAL_NUM,
     VAL_OBJ,
 } ValueType;
-
-typedef struct Obj Obj;
-typedef struct ObjString ObjString;
 
 typedef struct Value {
     ValueType type;
@@ -37,6 +83,8 @@ typedef struct Value {
 #define IS_NIL(value)       ((value).type == VAL_NIL)
 #define IS_NUM(value)       ((value).type == VAL_NUM)
 #define IS_OBJ(value)       ((value).type == VAL_OBJ)
+
+#endif // NAN_BOXING
 
 typedef struct {
     Value *values;
