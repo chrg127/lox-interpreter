@@ -33,23 +33,18 @@ static Value make_tombstone()
     return VALUE_MKBOOL(true);
 }
 
-// static bool objstr_cmp(ObjString *a, ObjString *b)
+// static bool value_cmp(Value a, Value b)
 // {
-//     return a == b; // we have string interning
+//     if (a.type != b.type)
+//         return false;
+//     switch (a.type) {
+//     case VAL_BOOL: return AS_BOOL(a) == AS_BOOL(b);
+//     case VAL_NIL: return false; // we hope to never handle this case
+//     case VAL_NUM: return AS_NUM(a) == AS_NUM(b);
+//     case VAL_OBJ: return AS_OBJ(a) == AS_OBJ(b); // we have string interning
+//     default: return false;
+//     }
 // }
-
-static bool value_cmp(Value a, Value b)
-{
-    if (a.type != b.type)
-        return false;
-    switch (a.type) {
-    case VAL_BOOL: return AS_BOOL(a) == AS_BOOL(b);
-    case VAL_NIL: return false; // we hope to never handle this case
-    case VAL_NUM: return AS_NUM(a) == AS_NUM(b);
-    case VAL_OBJ: return AS_OBJ(a) == AS_OBJ(b); // we have string interning
-    default: return false;
-    }
-}
 
 // static bool objstring_is_null(ObjString *str) { return str == NULL; }
 static bool value_is_null(Value v)            { return IS_NIL(v); }
@@ -73,9 +68,9 @@ static Entry *find_entry(Entry *entries, size_t cap, Value key)
                 return first_tombstone != NULL ? first_tombstone : ptr;
             else if (first_tombstone == NULL)
                 first_tombstone = ptr;
-        } else if (value_cmp(ptr->key, key))
+        } else if (value_equal(ptr->key, key))
             return ptr;
-        i = (i + 1) % cap;
+        i = (i + 1) & (cap - 1);
     }
 }
 
@@ -174,7 +169,7 @@ bool table_delete_value(Table *tab, Value key)
 
 static bool is_objstring(Value v)
 {
-    return v.type == VAL_OBJ && AS_OBJ(v)->type == OBJ_STRING;
+    return IS_OBJ(v) && AS_OBJ(v)->type == OBJ_STRING;
 }
 
 /* find a string key that is equal to data.
@@ -184,7 +179,7 @@ ObjString *table_find_string(Table *tab, const char *data, size_t len,
 {
     if (tab->size == 0)
         return NULL;
-    u32 i = hash % tab->cap;
+    u32 i = hash & (tab->cap - 1);
     for (;;) {
         Entry *entry = &tab->entries[i];
         if (value_is_null(entry->key)) {
@@ -203,7 +198,7 @@ ObjString *table_find_string(Table *tab, const char *data, size_t len,
             //     return entry->key;
             // }
         }
-        i = (i + 1) % tab->cap;
+        i = (i + 1) & (tab->cap - 1);
     }
 }
 

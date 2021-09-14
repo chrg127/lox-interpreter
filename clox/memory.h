@@ -2,11 +2,8 @@
 #define MEMORY_H_INCLUDED
 
 #include <stddef.h>
-// #include "value.h"
-
-typedef struct Value Value;
-typedef struct Obj Obj;
-typedef struct Table Table;
+#include "value.h"
+#include "table.h"
 
 void *reallocate(void *ptr, size_t old, size_t new);
 void gc_collect();

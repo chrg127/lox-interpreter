@@ -3,7 +3,6 @@
 
 #include <stddef.h>
 #include <string.h>
-#include "memory.h"
 #include "uint.h"
 
 #define VECTOR_INIT(v, data_name) \
