@@ -11,6 +11,7 @@
 #include "memory.h"
 #include "native.h"
 #include "debug.h"
+#include "util.h"
 
 VM vm;
 
@@ -104,24 +105,6 @@ void runtime_error(const char *fmt, ...)
     va_end(args);
 }
 
-// static bool call_fun(ObjFunction *fun, u8 argc)
-// {
-//     if (argc != fun->arity) {
-//         runtime_error("expected %d arguments, got %d", fun->arity, argc);
-//         return false;
-//     }
-//     if (vm.frame_size == FRAMES_MAX) {
-//         runtime_error("stack overflow");
-//         return false;
-//     }
-//     CallFrame *frame = &vm.frames[vm.frame_size++];
-//     frame->closure = NULL;
-//     frame->fun     = fun;
-//     frame->ip      = fun->chunk.code;
-//     frame->slots   = vm.sp - argc - 1;
-//     return true;
-// }
-//
 static u8 get_arity(Value funobj)
 {
     return IS_CLOSURE(funobj) ? AS_CLOSURE(funobj)->fun->arity
@@ -155,27 +138,21 @@ static bool call_generic(Value funobj, u8 argc)
     return true;
 }
 
-// static bool call(ObjClosure *closure, u8 argc)
-// {
-//     if (argc != closure->fun->arity) {
-//         runtime_error("expected %d arguments, got %d", closure->fun->arity, argc);
-//         return false;
-//     }
-//     if (vm.frame_size == FRAMES_MAX) {
-//         runtime_error("stack overflow");
-//         return false;
-//     }
-//     CallFrame *frame = &vm.frames[vm.frame_size++];
-//     frame->closure = closure;
-//     frame->fun     = closure->fun;
-//     frame->ip      = closure->fun->chunk.code;
-// }
+static Value get_ctor(ObjClass *klass, u8 argc)
+{
+    for (size_t i = 0; i < klass->ctors.size; i++) {
+        if (get_arity(klass->ctors.values[i]) == argc)
+            return klass->ctors.values[i];
+    }
+    return VALUE_MKNIL();
+}
 
 static bool call_value(Value callee, u8 argc)
 {
     if (IS_OBJ(callee)) {
         switch (OBJ_TYPE(callee)) {
         case OBJ_FUNCTION:
+        case OBJ_CLOSURE:
             return call_generic(callee, argc);
         case OBJ_NATIVE: {
             ObjNative *obj = AS_NATIVE_OBJ(callee);
@@ -191,19 +168,16 @@ static bool call_value(Value callee, u8 argc)
             vm.sp -= argc + 1;
             vm_push(result.value);
             return true;
-        case OBJ_CLOSURE:
-            return call_generic(callee, argc);
         case OBJ_CLASS: {
             ObjClass *klass = AS_CLASS(callee);
             vm.sp[-argc-1] = VALUE_MKOBJ(obj_make_instance(klass));
-            Value ctor;
-            if (table_lookup(&klass->methods, vm.init_string, &ctor)) {
+            Value ctor = get_ctor(klass, argc);
+            if (!IS_NIL(ctor))
                 return call_generic(ctor, argc);
-                // if (IS_FUNCTION(ctor))
-                //     return call_generic(ctor.as.obj, argc);
-                // return call(AS_CLOSURE(ctor), argc);
-            }
-            else if (argc != 0) {
+            // Value ctor;
+            // if (table_lookup(&klass->methods, vm.init_string, &ctor))
+            //     return call_generic(ctor, argc);
+            if (argc != 0) {
                 runtime_error("expected 0 arguments, got %d", argc);
                 return false;
             }
@@ -284,6 +258,8 @@ static void define_method(ObjString *name)
     Value method = peek(0);
     ObjClass *klass = AS_CLASS(peek(1));
     table_install(&klass->methods, name, method);
+    if (strncmp(name->data, "init", min(name->len, 4)) == 0)
+        valuearray_write(&klass->ctors, method);
     vm_pop();
 }
 

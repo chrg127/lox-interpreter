@@ -8,6 +8,7 @@
 #include "chunk.h"
 #include "native.h"
 #include "table.h"
+#include "vector.h"
 
 typedef enum {
     OBJ_STRING,
@@ -65,6 +66,7 @@ typedef struct {
 typedef struct {
     Obj obj;
     ObjString *name;
+    ValueArray ctors;
     Table methods;
 } ObjClass;
 

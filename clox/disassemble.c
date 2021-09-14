@@ -78,7 +78,7 @@ static size_t invoke_instr(const char *name, Chunk *chunk, size_t offset)
     printf("%s (%03d args) %05d '", name, argc, constant);
     value_print(chunk->constants.values[constant]);
     printf("'\n");
-    return offset + 3;
+    return offset + 4;
 }
 
 void disassemble(Chunk *chunk, const char *name)

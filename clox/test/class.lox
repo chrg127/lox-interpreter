@@ -36,4 +36,5 @@ class Vec {
 var v1 = Vec(3, 4, 5);
 var v2 = Vec(1, 8, 7);
 v1.add(v2);
+var v3 = Vec();
 print v1.to_string();
