@@ -231,13 +231,13 @@ static void emit_constant(Value value)
 static size_t emit_branch(u8 instr)
 {
     emit_three(instr, 0xFF, 0xFF);
-    return curr_chunk()->size - 2;
+    return curr_chunk()->code.size - 2;
 }
 
 static void emit_loop(size_t loop_start)
 {
     emit_byte(OP_BRANCH_BACK);
-    size_t offset = curr_chunk()->size - loop_start + 2;
+    size_t offset = curr_chunk()->code.size - loop_start + 2;
     if (offset > JUMP_MAX)
         error("loop body too large");
     emit_byte( offset       & 0xFF);
@@ -590,11 +590,11 @@ static void print_stmt()
 
 static void patch_branch(size_t offset)
 {
-    size_t jump = curr_chunk()->size - offset - 2;
+    size_t jump = curr_chunk()->code.size - offset - 2;
     if (jump > JUMP_MAX)
         error("too much code to jump over");
-    curr_chunk()->code[offset  ] =  jump       & 0xFF;
-    curr_chunk()->code[offset+1] = (jump >> 8) & 0xFF;
+    curr_chunk()->code.data[offset  ] =  jump       & 0xFF;
+    curr_chunk()->code.data[offset+1] = (jump >> 8) & 0xFF;
 }
 
 static void if_stmt()
@@ -625,7 +625,7 @@ static void if_stmt()
 
 static void while_stmt()
 {
-    size_t loop_start = curr_chunk()->size;
+    size_t loop_start = curr_chunk()->code.size;
     consume(TOKEN_LEFT_PAREN, "expected '(' after 'while'");
     expr();
     consume(TOKEN_RIGHT_PAREN, "expected ')' after condition");
@@ -650,7 +650,7 @@ static void for_stmt()
     else if (match(TOKEN_CONST))     var_decl(true);
     else                             expr_stmt();
 
-    size_t loop_start = curr_chunk()->size;
+    size_t loop_start = curr_chunk()->code.size;
     size_t exit_offset = 0;
     if (!match(TOKEN_SEMICOLON)) {
         expr();
@@ -661,7 +661,7 @@ static void for_stmt()
 
     if (!match(TOKEN_RIGHT_PAREN)) {
         size_t body_offset = emit_branch(OP_BRANCH);
-        size_t increment_start = curr_chunk()->size;
+        size_t increment_start = curr_chunk()->code.size;
         expr();
         emit_byte(OP_POP);
         consume(TOKEN_RIGHT_PAREN, "expected ')' at end of 'for'");
@@ -716,7 +716,7 @@ static void switch_stmt()
     consume(TOKEN_RIGHT_PAREN, "expected ')' after expression");
 
     consume(TOKEN_LEFT_BRACE, "expected '{' after ')'");
-    vec_size_t case_offsets;
+    VecSizet case_offsets;
     vec_size_t_init(&case_offsets);
     size_t offset = 0;
     while (!match(TOKEN_RIGHT_BRACE) && !match(TOKEN_DEFAULT)) {

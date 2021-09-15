@@ -12,7 +12,7 @@ static size_t simple_instr(const char *name, size_t offset)
 
 static size_t const_instr(const char *name, Chunk *chunk, size_t offset)
 {
-    u8 index = chunk->code[offset + 1];
+    u8 index = chunk->code.data[offset + 1];
     printf("%s %03d '", name, index);
     value_print(chunk->constants.values[index]);
     printf("'");
@@ -21,7 +21,7 @@ static size_t const_instr(const char *name, Chunk *chunk, size_t offset)
 
 static size_t const_long_instr(const char *name, Chunk *chunk, size_t offset)
 {
-    u16 index = TOU16(chunk->code[offset + 1], chunk->code[offset + 2]);
+    u16 index = TOU16(chunk->code.data[offset + 1], chunk->code.data[offset + 2]);
     printf("%s %05d '", name, index);
     value_print(chunk->constants.values[index]);
     printf("'");
@@ -30,21 +30,21 @@ static size_t const_long_instr(const char *name, Chunk *chunk, size_t offset)
 
 static size_t byte_instr(const char *name, Chunk *chunk, size_t offset)
 {
-    u8 slot = chunk->code[offset+1];
+    u8 slot = chunk->code.data[offset+1];
     printf("%s %03d", name, slot);
     return offset + 2;
 }
 
 static size_t byte2_instr(const char *name, Chunk *chunk, size_t offset)
 {
-    u16 slot = TOU16(chunk->code[offset+1], chunk->code[offset+2]);
+    u16 slot = TOU16(chunk->code.data[offset+1], chunk->code.data[offset+2]);
     printf("%s %05d", name, slot);
     return offset + 3;
 }
 
 static size_t jump_instr(const char *name, int sign, Chunk *chunk, size_t offset)
 {
-    u16 branch = TOU16(chunk->code[offset + 1], chunk->code[offset + 2]);
+    u16 branch = TOU16(chunk->code.data[offset + 1], chunk->code.data[offset + 2]);
     printf("%s %ld -> %ld", name, offset, offset + 3 + sign * branch);
     return offset + 3;
 }
@@ -52,8 +52,8 @@ static size_t jump_instr(const char *name, int sign, Chunk *chunk, size_t offset
 static size_t closure_instr(const char *name, Chunk *chunk, size_t offset)
 {
     offset++;
-    u8 b1 = chunk->code[offset++];
-    u8 b2 = chunk->code[offset++];
+    u8 b1 = chunk->code.data[offset++];
+    u8 b2 = chunk->code.data[offset++];
     u16 constant = TOU16(b1, b2);
     printf("%s %03d '", "clo", constant);
     value_print(chunk->constants.values[constant]);
@@ -61,9 +61,9 @@ static size_t closure_instr(const char *name, Chunk *chunk, size_t offset)
 
     ObjFunction *fun = AS_FUNCTION(chunk->constants.values[constant]);
     for (int j = 0; j < fun->upvalue_count; j++) {
-        int is_local = chunk->code[offset++];
-        u8 b1 = chunk->code[offset++];
-        u8 b2 = chunk->code[offset++];
+        int is_local = chunk->code.data[offset++];
+        u8 b1 = chunk->code.data[offset++];
+        u8 b2 = chunk->code.data[offset++];
         u16 index    = TOU16(b1, b2);
         printf("\n%04ld:       | %s %05d", offset - 2, is_local ? "local" : "upvalue", index);
     }
@@ -73,8 +73,8 @@ static size_t closure_instr(const char *name, Chunk *chunk, size_t offset)
 
 static size_t invoke_instr(const char *name, Chunk *chunk, size_t offset)
 {
-    u16 constant = chunk->code[offset + 1];
-    u8 argc      = chunk->code[offset + 2];
+    u16 constant = chunk->code.data[offset + 1];
+    u8 argc      = chunk->code.data[offset + 2];
     printf("%s (%03d args) %05d '", name, argc, constant);
     value_print(chunk->constants.values[constant]);
     printf("'");
@@ -84,7 +84,7 @@ static size_t invoke_instr(const char *name, Chunk *chunk, size_t offset)
 void disassemble(Chunk *chunk, const char *name)
 {
     printf("=== %s ===\n", name);
-    for (size_t i = 0; i < chunk->size; ) {
+    for (size_t i = 0; i < chunk->code.size; ) {
         i = disassemble_opcode(chunk, i);
         printf("\n");
     }
@@ -99,7 +99,7 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     else
         printf("%04ld ", line);
 
-    u8 instr = chunk->code[offset];
+    u8 instr = chunk->code.data[offset];
     switch (instr) {
     case OP_CONSTANT:       return const_instr("ldc", chunk, offset);
     case OP_CONSTANT_LONG:  return const_long_instr("ldc", chunk, offset);

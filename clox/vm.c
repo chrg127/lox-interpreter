@@ -63,7 +63,7 @@ static void reset_stack()
 static void v_runtime_error(const char *fmt, va_list args)
 {
     CallFrame *frame = &vm.frames[vm.frame_size - 1];
-    size_t offset = vm.ip - frame->fun->chunk.code - 1;
+    size_t offset = vm.ip - frame->fun->chunk.code.data - 1;
     int line = chunk_get_line(&frame->fun->chunk, offset);
     fprintf(stderr, "%s:%d: runtime error: ", vm.filename, line);
 
@@ -77,7 +77,7 @@ static void v_runtime_error(const char *fmt, va_list args)
     for (int i = vm.frame_size - 1; i >= 0; i--) {
         CallFrame *frame = &vm.frames[i];
         ObjFunction *fun = frame->fun;
-        size_t offset = frame->ip - fun->chunk.code - 1;
+        size_t offset = frame->ip - fun->chunk.code.data - 1;
         fprintf(stderr, "%s:%ld: in ", vm.filename, chunk_get_line(&fun->chunk, offset));
         if (fun->name == NULL)
             fprintf(stderr, "script\n");
@@ -127,12 +127,12 @@ static bool call_generic(Value funobj, u8 argc)
         ObjClosure *closure = AS_CLOSURE(funobj);
         frame->closure = closure;
         frame->fun     = closure->fun;
-        frame->ip      = closure->fun->chunk.code;
+        frame->ip      = closure->fun->chunk.code.data;
     } else {
         ObjFunction *fun = AS_FUNCTION(funobj);
         frame->closure = NULL;
         frame->fun     = fun;
-        frame->ip      = fun->chunk.code;
+        frame->ip      = fun->chunk.code.data;
     }
     frame->slots   = vm.sp - argc - 1;
     return true;
@@ -311,7 +311,7 @@ static VMResult run()
         print_stack();
         disassemble_opcode(
             &frame->fun->chunk,
-            (size_t)(vm.ip - frame->fun->chunk.code)
+            (size_t)(vm.ip - frame->fun->chunk.code.data)
         );
         printf("\n");
 #endif

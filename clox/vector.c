@@ -2,12 +2,12 @@
 
 #include "memory.h"
 
-VECTOR_DEFINE_INIT(u8vec, u8, u8vec, data)
-VECTOR_DEFINE_WRITE(u8vec, u8, u8vec, data)
-VECTOR_DEFINE_FREE(u8vec, u8, u8vec, data)
-VECTOR_DEFINE_SEARCH(u8vec, u8, u8vec, data)
-VECTOR_DEFINE_DELETE(u8vec, u8, u8vec, data)
+VECTOR_DEFINE_INIT(VecU8, u8, vec_u8, data)
+VECTOR_DEFINE_WRITE(VecU8, u8, vec_u8, data)
+VECTOR_DEFINE_FREE(VecU8, u8, vec_u8, data)
+VECTOR_DEFINE_SEARCH(VecU8, u8, vec_u8, data)
+VECTOR_DEFINE_DELETE(VecU8, u8, vec_u8, data)
 
-VECTOR_DEFINE_INIT(vec_size_t, size_t, vec_size_t, data)
-VECTOR_DEFINE_WRITE(vec_size_t, size_t, vec_size_t, data)
-VECTOR_DEFINE_FREE(vec_size_t, size_t, vec_size_t, data)
+VECTOR_DEFINE_INIT(VecSizet, size_t, vec_size_t, data)
+VECTOR_DEFINE_WRITE(VecSizet, size_t, vec_size_t, data)
+VECTOR_DEFINE_FREE(VecSizet, size_t, vec_size_t, data)
