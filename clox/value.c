@@ -75,7 +75,7 @@ ObjString *value_tostring(Value value)
 #endif
 }
 
-u32 hash_value(Value value)
+u32 value_hash(Value value)
 {
 #ifdef NAN_BOXING
          if (IS_BOOL(value)) return AS_BOOL(value);
