@@ -18,8 +18,8 @@ fun get() {
 }
 
 var myfun = get();
-//var i = 4;
-//print myfun();
+var i = 4;
+print myfun();
 
 {
     var i = 5;
