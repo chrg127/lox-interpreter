@@ -36,7 +36,7 @@ static inline double value_to_num(Value value)
 }
 
 #define VALUE_FALSE         ((Value)(u64)(QNAN | TAG_FALSE))
-#define VALUE_TRUE          ((Value)(u64)(QNAN | TAG_FALSE))
+#define VALUE_TRUE          ((Value)(u64)(QNAN | TAG_TRUE))
 
 #define VALUE_MKBOOL(value) ((value) ? VALUE_TRUE : VALUE_FALSE)
 #define VALUE_MKNIL()       ((Value)(u64)(QNAN | TAG_NIL))
