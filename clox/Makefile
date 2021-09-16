@@ -15,6 +15,9 @@ flags_deps = -MMD -MP -MF $(@:.o=.d)
 ifeq ($(build),debug)
     outdir := debug
     CFLAGS += -g -DDEBUG
+else ifeq ($(build),reldeb)
+    outdir := reldeb
+    CFLAGS += -O2 -g -DNDEBUG
 else
     outdir := release
     CFLAGS += -O3 -DNDEBUG
