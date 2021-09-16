@@ -15,6 +15,7 @@ void value_print(Value value)
     else if (IS_NIL(value))  printf("nil");
     else if (IS_NUM(value))  printf("%g", AS_NUM(value));
     else if (IS_OBJ(value))  obj_print(value);
+    else printf("ERROR");
 #else
     switch (value.type) {
     case VAL_BOOL: printf(AS_BOOL(value) ? "true" : "false"); break;
