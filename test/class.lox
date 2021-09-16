@@ -41,5 +41,3 @@ class Monkey < Animal { }
 
 var m = Monkey();
 m.say();
-
-

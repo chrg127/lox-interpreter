@@ -3,6 +3,7 @@ jlox/lox/Expr.java
 jlox/lox/Stmt.java
 clox/debug
 clox/release
+clox/reldeb
 *.o
 *.class
 *.d
