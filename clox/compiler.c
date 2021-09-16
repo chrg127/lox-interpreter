@@ -909,7 +909,8 @@ static void number(bool can_assign)
 
 static void string(bool can_assign)
 {
-    emit_constant(VALUE_MKOBJ(obj_copy_string(parser.prev.start + 1, parser.prev.len - 2)));
+    // this, I believe, is the only place where we can make use of SSO
+    emit_constant(obj_make_ssostring(parser.prev.start + 1, parser.prev.len - 2));
 }
 
 static void grouping(bool can_assign)

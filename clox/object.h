@@ -121,7 +121,13 @@ void obj_free(Obj *obj);
 void obj_free_arr(Obj *objects);
 u32 obj_hash(Obj *obj);
 bool obj_strcmp(Value a, Value b);
-ObjString *obj_tostring(Value value);
-ObjString *obj_concat(ObjString *a, ObjString *b);
+Value obj_tostring(Value value);
+Value obj_concat(Value a, Value b);
+
+static inline Value obj_make_ssostring(const char *str, size_t len)
+{
+    return len < VALUE_SSO_SIZE ? value_mksstr(str, len)
+                                : VALUE_MKOBJ(obj_copy_string(str, len));
+}
 
 #endif

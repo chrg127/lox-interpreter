@@ -37,6 +37,8 @@ static inline bool table_install(Table *tab, ObjString *key, Value value) { retu
 static inline bool table_lookup(Table *tab, ObjString *key, Value *value) { return table_lookup_value(tab, VALUE_MKOBJ(key), value); }
 static inline bool table_delete(Table *tab, ObjString *key)               { return table_delete_value(tab, VALUE_MKOBJ(key)); }
 
+u32 hash_string(const char *str, size_t len);
+
 #define TABLE_FOR_EACH(tab, entry) \
     for (Entry *entry = tab->entries; ((size_t) (entry - tab->entries)) < tab->cap; entry++)
 

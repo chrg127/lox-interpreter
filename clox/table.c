@@ -6,6 +6,17 @@
 #include "vector.h"
 #include "object.h"
 
+// algorithm: FNV-1a
+u32 hash_string(const char *str, size_t len)
+{
+    u32 hash = 2166136261u;
+    for (size_t i = 0; i < len; i++) {
+        hash ^= (u8) str[i];
+        hash *= 16777619;
+    }
+    return hash;
+}
+
 static bool is_empty_key(Value v)        { return IS_NIL(v); }
 static bool is_empty_value(Entry *entry) { return IS_NIL(entry->value); }
 static u32 hash(Value v)                 { return value_hash(v); }

@@ -24,7 +24,7 @@ NativeResult native_sqrt(int argc, Value *argv)
 
 NativeResult native_tostr(int argc, Value *argv)
 {
-    return NATIVE_MKRES(VALUE_MKOBJ(value_tostring(argv[0])));
+    return NATIVE_MKRES(value_tostring(argv[0]));
 }
 
 NativeResult native_typeof(int argc, Value *argv)

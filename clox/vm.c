@@ -45,12 +45,12 @@ static bool is_falsey(Value value)
 
 static void concat()
 {
-    ObjString *b = AS_STRING(peek(0));
-    ObjString *a = AS_STRING(peek(1));
-    ObjString *result = obj_concat(a, b);
+    Value a = peek(1);
+    Value b = peek(0);
+    Value result = obj_concat(a, b);
     vm_pop();
     vm_pop();
-    vm_push(VALUE_MKOBJ(result));
+    vm_push(result);
 }
 
 static void reset_stack()
@@ -300,8 +300,8 @@ static VMResult run()
             runtime_error("operands must be numbers");  \
             return VM_RUNTIME_ERROR;                    \
         }                                               \
-        double b = AS_NUM(vm_pop());                       \
-        double a = AS_NUM(vm_pop());                       \
+        double b = AS_NUM(vm_pop());                    \
+        double a = AS_NUM(vm_pop());                    \
         vm_push(value_type(a op b));                    \
     } while (0)
 
@@ -427,7 +427,7 @@ static VMResult run()
         case OP_GREATER: BINARY_OP(VALUE_MKBOOL, >); break;
         case OP_LESS:    BINARY_OP(VALUE_MKBOOL, <); break;
         case OP_ADD:
-            if (IS_STRING(peek(0)) && IS_STRING(peek(1)))
+            if ((IS_SSTR(peek(0)) || IS_STRING(peek(0))) && (IS_SSTR(peek(1)) || IS_STRING(peek(1))))
                 concat();
             else if (IS_NUM(peek(0)) && IS_NUM(peek(1))) {
                 double b = AS_NUM(vm_pop());

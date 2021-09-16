@@ -15,7 +15,7 @@ static const char *type_tostring(ObjType type)
     case OBJ_NATIVE:   return "ObjNative";
     case OBJ_CLOSURE:  return "ObjClosure";
     case OBJ_UPVALUE:  return "ObjUpvalue";
-    default: return "NoType";
+    default:           return "ERROR";
     }
 }
 
@@ -47,17 +47,6 @@ static ObjString *alloc_str(char *data, size_t len, u32 hash)
     table_install(&vm.strings, str, VALUE_MKNIL());
     vm_pop();
     return str;
-}
-
-// algorithm: FNV-1a
-static u32 hash_string(const char *str, size_t len)
-{
-    u32 hash = 2166136261u;
-    for (size_t i = 0; i < len; i++) {
-        hash ^= (u8) str[i];
-        hash *= 16777619;
-    }
-    return hash;
 }
 
 static void print_function(ObjFunction *fun)
@@ -162,11 +151,11 @@ ObjBoundMethod *obj_make_bound_method(Value receiver, ObjClosure *method)
 void obj_print(Value value)
 {
     switch (OBJ_TYPE(value)) {
-    case OBJ_STRING: printf("%.*s", (int) AS_STRING(value)->len, AS_STRING(value)->data); break;
-    case OBJ_FUNCTION: print_function(AS_FUNCTION(value)); break;
-    case OBJ_NATIVE: printf("<native fn '%s'>", ((ObjNative *)AS_OBJ(value))->name); break;
-    case OBJ_CLOSURE: print_function(AS_CLOSURE(value)->fun); break;
-    case OBJ_UPVALUE: printf("upvalue"); break;
+    case OBJ_STRING:    printf("%.*s", (int) AS_STRING(value)->len, AS_STRING(value)->data); break;
+    case OBJ_FUNCTION:  print_function(AS_FUNCTION(value)); break;
+    case OBJ_NATIVE:    printf("<native fn '%s'>", ((ObjNative *)AS_OBJ(value))->name); break;
+    case OBJ_CLOSURE:   print_function(AS_CLOSURE(value)->fun); break;
+    case OBJ_UPVALUE:   printf("upvalue"); break;
     case OBJ_CLASS:
         printf("<class ");
         obj_print(VALUE_MKOBJ(AS_CLASS(value)->name));
@@ -254,38 +243,57 @@ u32 obj_hash(Obj *obj)
     }
 }
 
-static ObjString *fun_tostring(ObjFunction *fun)
+static Value fun_tostring(ObjFunction *fun)
 {
-    return fun->name == NULL ? obj_copy_string("<script>", 8)
-                             : fun->name;
+    return fun->name == NULL ? obj_make_ssostring("<script>", 8)
+                             : VALUE_MKOBJ(fun->name);
 }
 
-ObjString *obj_tostring(Value value)
+Value obj_tostring(Value value)
 {
     switch (AS_OBJ(value)->type) {
-    case OBJ_STRING:   return AS_STRING(value);
+    case OBJ_STRING:   return value;
     case OBJ_FUNCTION: return fun_tostring(AS_FUNCTION(value));
     case OBJ_NATIVE: {
-        const char *name = ((ObjNative *)AS_OBJ(value))->name;
-        return obj_copy_string(name, strlen(name));
+        const char *name = AS_NATIVE_OBJ(value)->name;
+        return obj_make_ssostring(name, strlen(name));
     }
     case OBJ_CLOSURE:  return fun_tostring(AS_CLOSURE(value)->fun);
-    case OBJ_UPVALUE:  return obj_copy_string("upvalue", 7);
-    case OBJ_CLASS:    return AS_CLASS(value)->name;
+    case OBJ_UPVALUE:  return obj_make_ssostring("upvalue", 7);
+    case OBJ_CLASS:    return VALUE_MKOBJ(AS_CLASS(value)->name);
     case OBJ_INSTANCE: {
         ObjInstance *inst = AS_INSTANCE(value);
-        return obj_concat(inst->klass->name, obj_copy_string(" instance", 9));
+        ObjString *a = inst->klass->name;
+        ObjString *b = obj_copy_string(" instance", 9);
+        return obj_concat(VALUE_MKOBJ(a), VALUE_MKOBJ(b));
     }
-    default: return NULL; // unreachable
+    default: return VALUE_MKNIL(); // unreachable
     }
 }
 
-ObjString *obj_concat(ObjString *a, ObjString *b)
+static inline void concat_cstr(char *dest, char *a, size_t alen, char *b, size_t blen)
 {
-    size_t len = a->len + b->len;
+    memcpy(dest,        a, alen);
+    memcpy(dest + alen, b, blen);
+    dest[alen+blen] = '\0';
+}
+
+#define OBJ_STRDATA(v)  IS_SSTR(v) ? AS_SSTR(v)         : AS_STRING(v)->data
+#define OBJ_STRLEN(v)   IS_SSTR(v) ? strlen(AS_SSTR(v)) : AS_STRING(v)->len
+
+Value obj_concat(Value a, Value b)
+{
+    char *as = OBJ_STRDATA(a);
+    char *bs = OBJ_STRDATA(b);
+    size_t alen = OBJ_STRLEN(a);
+    size_t blen = OBJ_STRLEN(b);
+    size_t len = alen + blen;
+    if (len < VALUE_SSO_SIZE) {
+        Value value = VALUE_MKSSTR();
+        concat_cstr(AS_SSTR(value), as, alen, bs, blen);
+        return value;
+    }
     char *data = ALLOCATE(char, len+1);
-    memcpy(data,          a->data, a->len);
-    memcpy(data + a->len, b->data, b->len);
-    data[len] = '\0';
-    return obj_take_string(data, len);
+    concat_cstr(data, as, alen, bs, blen);
+    return VALUE_MKOBJ(obj_take_string(data, len));
 }

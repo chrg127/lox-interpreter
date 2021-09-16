@@ -1,0 +1,20 @@
+var a = "hi";
+var b = "hello";
+var c = "longlonglong";
+var d = "anotherlonglong";
+
+var i = 0;
+while (clock() < 10) {
+    a + b;
+    b + c;
+    d + a;
+    c + a;
+    d + b;
+    a == b;
+    b == c;
+    d == a;
+    c == a;
+    d == b;
+    i = i + 1;
+}
+print "result:" + str(i);
