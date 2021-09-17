@@ -34,6 +34,7 @@ typedef enum {
     PREC_FACTOR,    // * /
     PREC_UNARY,     // ! -
     PREC_CALL,      // . ()
+    PREC_LAMBDA,    // lambda
     PREC_PRIMARY,
 } Precedence;
 
@@ -248,7 +249,7 @@ static void emit_loop(size_t loop_start)
 
 /* compiler */
 
-static void compiler_init(Compiler *compiler, FunctionType type)
+static void compiler_init(Compiler *compiler, FunctionType type, Token *name)
 {
     compiler->type = type;
     compiler->local_count = 0;
@@ -262,7 +263,7 @@ static void compiler_init(Compiler *compiler, FunctionType type)
     LIST_APPEND(compiler, curr, enclosing);
 
     if (type != TYPE_SCRIPT)
-        curr->fun->name = obj_copy_string(parser.prev.start, parser.prev.len);
+        curr->fun->name = obj_copy_string(name->start, name->len);
 
     Local *local = &curr->locals[curr->local_count++];
     local->depth       = 0;
@@ -448,10 +449,10 @@ static void var_decl(bool is_const)
     define_var(global);
 }
 
-static void function(FunctionType type)
+static void function(FunctionType type, Token *name)
 {
     Compiler compiler;
-    compiler_init(&compiler, type);
+    compiler_init(&compiler, type, name);
     begin_scope();
 
     consume(TOKEN_LEFT_PAREN, "expected '(' after function name");
@@ -484,7 +485,7 @@ static void fun_decl()
 {
     u16 global = parse_var(false, "expected function name");
     mark_initialized();
-    function(TYPE_FUNCTION);
+    function(TYPE_FUNCTION, &parser.prev);
     define_var(global);
 }
 
@@ -528,7 +529,7 @@ static void method()
     FunctionType type = TYPE_METHOD;
     if (parser.prev.len == 4 && memcmp(parser.prev.start, "init", 4) == 0)
         type = TYPE_CTOR;
-    function(type);
+    function(type, &parser.prev);
     emit_u16(OP_METHOD, constant);
 }
 
@@ -954,6 +955,12 @@ static void super_op(bool can_assign)
     }
 }
 
+static void lambda(bool can_assign)
+{
+    Token name = synthetic_token("lambda");
+    function(TYPE_FUNCTION, &name);
+}
+
 static ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]  = { grouping,   call,   PREC_CALL   },
     [TOKEN_RIGHT_PAREN] = { NULL,       NULL,   PREC_NONE   },
@@ -985,6 +992,7 @@ static ParseRule rules[] = {
     [TOKEN_FALSE]       = { literal,    NULL,   PREC_NONE   },
     [TOKEN_FOR]         = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_FUN]         = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_LAMBDA]      = { lambda,     NULL,   PREC_LAMBDA },
     [TOKEN_IF]          = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_NIL]         = { literal,    NULL,   PREC_NONE   },
     [TOKEN_OR]          = { NULL,       or_op,  PREC_OR     },
@@ -1012,7 +1020,7 @@ ObjFunction *compile(const char *src, const char *filename)
 {
     scanner_init(src);
     Compiler compiler;
-    compiler_init(&compiler, TYPE_SCRIPT);
+    compiler_init(&compiler, TYPE_SCRIPT, /* token = */ NULL);
     parser.had_error  = false;
     parser.panic_mode = false;
     parser.file       = filename;

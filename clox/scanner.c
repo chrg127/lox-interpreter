@@ -165,6 +165,7 @@ static TokenType ident_type()
         }
         break;
     case 'i': return check_keyword(1, 1, "f",     TOKEN_IF);
+    case 'l': return check_keyword(1, 5, "ambda", TOKEN_LAMBDA);
     case 'n': return check_keyword(1, 2, "il",    TOKEN_NIL);
     case 'o': return check_keyword(1, 1, "r",     TOKEN_OR);
     case 'p': return check_keyword(1, 4, "rint",  TOKEN_PRINT);
