@@ -24,7 +24,20 @@ NativeResult native_sqrt(int argc, Value *argv)
 
 NativeResult native_tostr(int argc, Value *argv)
 {
-    return NATIVE_MKRES(value_tostring(argv[0]));
+    Value arg = argv[0];
+    // if (IS_INSTANCE(arg)) {
+    //     ObjClass *klass = AS_INSTANCE(arg)->klass;
+    //     Value method;
+    //     ObjString *name = obj_copy_string("to_string", 9);
+    //     if (table_lookup(&klass->methods, name, &method)) {
+    //         Value retval;
+    //         vm_push(arg);
+    //         if (!vm_invoke(name, 0, &retval))
+    //             return NATIVE_MKERR();
+    //         return NATIVE_MKRES(retval);
+    //     }
+    // }
+    return NATIVE_MKRES(value_tostring(arg));
 }
 
 NativeResult native_typeof(int argc, Value *argv)

@@ -56,7 +56,10 @@ VMResult vm_interpret(const char *src, const char *filename);
 void native_runtime_error(const char *fn, const char *fmt, ...);
 void vm_push(Value value);
 Value vm_pop();
+bool vm_call(ObjString *name, u8 argc, Value *out);
+bool vm_invoke(ObjString *name, u8 argc, Value *out);
 
+// no free, because the gray stack is allocated manually
 VECTOR_DECLARE_INIT(GrayStack, Obj *, graystack);
 VECTOR_DECLARE_WRITE(GrayStack, Obj *, graystack);
 

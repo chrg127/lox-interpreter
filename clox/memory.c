@@ -136,8 +136,11 @@ void *reallocate(void *ptr, size_t old, size_t new)
 #endif
     }
 
-    if (vm.bytes_allocated > vm.next_gc)
+    if (vm.bytes_allocated > vm.next_gc) {
+        if (vm.bytes_allocated > (size_t)-100)
+            fprintf(stderr, "off by one error in garbage collector\n");
         gc_collect();
+    }
 
     if (new == 0) {
         free(ptr);

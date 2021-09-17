@@ -138,15 +138,6 @@ static bool call_generic(Value funobj, u8 argc)
     return true;
 }
 
-static Value get_ctor(ObjClass *klass, u8 argc)
-{
-    for (size_t i = 0; i < klass->ctors.size; i++) {
-        if (get_arity(klass->ctors.values[i]) == argc)
-            return klass->ctors.values[i];
-    }
-    return VALUE_MKNIL();
-}
-
 static bool call_value(Value callee, u8 argc)
 {
     if (IS_OBJ(callee)) {
@@ -171,12 +162,8 @@ static bool call_value(Value callee, u8 argc)
         case OBJ_CLASS: {
             ObjClass *klass = AS_CLASS(callee);
             vm.sp[-argc-1] = VALUE_MKOBJ(obj_make_instance(klass));
-            Value ctor = get_ctor(klass, argc);
-            if (!IS_NIL(ctor))
-                return call_generic(ctor, argc);
-            // Value ctor;
-            // if (table_lookup(&klass->methods, vm.init_string, &ctor))
-            //     return call_generic(ctor, argc);
+            if (!IS_NIL(klass->ctor))
+                return call_generic(klass->ctor, argc);
             if (argc != 0) {
                 runtime_error("expected 0 arguments, got %d", argc);
                 return false;
@@ -258,8 +245,8 @@ static void define_method(ObjString *name)
     Value method = peek(0);
     ObjClass *klass = AS_CLASS(peek(1));
     table_install(&klass->methods, name, method);
-    if (strncmp(name->data, "init", min(name->len, 4)) == 0)
-        valuearray_write(&klass->ctors, method);
+    if (strncmp(name->data, "init", MIN(name->len, 4)) == 0)
+        klass->ctor = method;
     vm_pop();
 }
 
@@ -604,6 +591,16 @@ VMResult vm_interpret(const char *src, const char *filename)
 #endif
 
     return run();
+}
+
+bool vm_call(ObjString *name, u8 argc, Value *out)
+{
+    return false;
+}
+
+bool vm_invoke(ObjString *name, u8 argc, Value *out)
+{
+    return false;
 }
 
 VECTOR_DEFINE_INIT(GrayStack, Obj *, graystack, stack)

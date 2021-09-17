@@ -66,7 +66,7 @@ typedef struct {
 typedef struct {
     Obj obj;
     ObjString *name;
-    ValueArray ctors;
+    Value ctor;
     Table methods;
 } ObjClass;
 

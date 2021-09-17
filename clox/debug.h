@@ -7,6 +7,7 @@
 #define DEBUG_TRACE_EXECUTION
 // #define DEBUG_STRESS_GC
 // #define DEBUG_LOC_GC
+#define DEBUG_GC_OFF1
 
 #endif
 

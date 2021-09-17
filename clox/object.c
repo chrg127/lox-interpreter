@@ -131,7 +131,7 @@ ObjClass *obj_make_class(ObjString *name)
 {
     ObjClass *klass = ALLOCATE_OBJ(ObjClass, OBJ_CLASS);
     klass->name = name;
-    valuearray_init(&klass->ctors);
+    klass->ctor = VALUE_MKNIL();
     table_init(&klass->methods);
     return klass;
 }
@@ -208,7 +208,6 @@ void obj_free(Obj *obj)
     case OBJ_CLASS: {
         ObjClass *klass = (ObjClass *)obj;
         table_free(&klass->methods);
-        valuearray_free(&klass->ctors);
         FREE(ObjClass, obj);
         break;
     }

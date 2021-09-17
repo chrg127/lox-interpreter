@@ -41,9 +41,14 @@ bool value_equal(Value a, Value b)
 
 static Value num_tostring(double num)
 {
-    int len = snprintf(NULL, 0, "%g", num);
+    int len = snprintf(NULL, 0, "%g", num) + 1;
+    if ((size_t)len < VALUE_SSO_SIZE) {
+        char output[VALUE_SSO_SIZE];
+        snprintf(output, len, "%g", num);
+        return value_mksstr(output, len-1);
+    }
     char *output = ALLOCATE(char, len);
-    snprintf(output, len, "%f", num);
+    snprintf(output, len, "%g", num);
     return VALUE_MKOBJ(obj_take_string(output, len-1));
 }
 
