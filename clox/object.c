@@ -7,6 +7,7 @@
 #include "vm.h"
 #include "debug.h"
 
+#ifdef DEBUG_LOG_GC
 static const char *type_tostring(ObjType type)
 {
     switch (type) {
@@ -18,6 +19,7 @@ static const char *type_tostring(ObjType type)
     default:           return "ERROR";
     }
 }
+#endif
 
 static Obj *alloc_obj(size_t size, ObjType type)
 {
@@ -66,6 +68,7 @@ ObjString *obj_copy_string(const char *str, size_t len)
     ObjString *interned = table_find_string(&vm.strings, str, len, hash);
     if (interned != NULL)
         return interned;
+
     char *newstr = ALLOCATE(char, len + 1);
     memcpy(newstr, str, len);
     newstr[len] = '\0';
@@ -80,15 +83,16 @@ ObjString *obj_take_string(char *data, size_t len)
         FREE_ARRAY(char, data, len + 1);
         return interned;
     }
+
     return alloc_str(data, len, hash);
 }
 
 ObjFunction *obj_make_fun()
 {
     ObjFunction *fun = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
-    fun->arity = 0;
+    fun->arity         = 0;
     fun->upvalue_count = 0;
-    fun->name = NULL;
+    fun->name          = NULL;
     chunk_init(&fun->chunk);
     return fun;
 }
@@ -96,8 +100,8 @@ ObjFunction *obj_make_fun()
 ObjNative *obj_make_native(NativeFn fun, const char *name, u8 arity)
 {
     ObjNative *native = ALLOCATE_OBJ(ObjNative, OBJ_NATIVE);
-    native->fun  = fun;
-    native->name = name;
+    native->fun   = fun;
+    native->name  = name;
     native->arity = arity;
     return native;
 }
@@ -144,26 +148,26 @@ ObjBoundMethod *obj_make_bound_method(Value receiver, ObjClosure *method)
 {
     ObjBoundMethod *bound = ALLOCATE_OBJ(ObjBoundMethod, OBJ_BOUND_METHOD);
     bound->receiver = receiver;
-    bound->method = method;
+    bound->method   = method;
     return bound;
 }
 
-void obj_print(Value value)
+void obj_print(Value value, bool debug)
 {
     switch (OBJ_TYPE(value)) {
-    case OBJ_STRING:    printf("%.*s", (int) AS_STRING(value)->len, AS_STRING(value)->data); break;
+    case OBJ_STRING:    printf(debug ? "\"%s\"" : "%s", AS_STRING(value)->data); break;
     case OBJ_FUNCTION:  print_function(AS_FUNCTION(value)); break;
     case OBJ_NATIVE:    printf("<native fn '%s'>", ((ObjNative *)AS_OBJ(value))->name); break;
     case OBJ_CLOSURE:   print_function(AS_CLOSURE(value)->fun); break;
     case OBJ_UPVALUE:   printf("upvalue"); break;
     case OBJ_CLASS:
         printf("<class ");
-        obj_print(VALUE_MKOBJ(AS_CLASS(value)->name));
+        obj_print(VALUE_MKOBJ(AS_CLASS(value)->name), false);
         printf(">");
         break;
     case OBJ_INSTANCE:
         printf("<instance of class ");
-        obj_print(VALUE_MKOBJ(AS_INSTANCE(value)->klass->name));
+        obj_print(VALUE_MKOBJ(AS_INSTANCE(value)->klass->name), false);
         printf(">");
         break;
     case OBJ_BOUND_METHOD: print_function(AS_BOUND_METHOD(value)->method->fun); break;
@@ -243,7 +247,7 @@ u32 obj_hash(Obj *obj)
     }
 }
 
-static Value fun_tostring(ObjFunction *fun)
+static inline Value fun_tostring(ObjFunction *fun)
 {
     return fun->name == NULL ? obj_make_ssostring("<script>", 8)
                              : VALUE_MKOBJ(fun->name);

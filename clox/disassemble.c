@@ -14,7 +14,7 @@ static size_t const_instr(const char *name, Chunk *chunk, size_t offset)
 {
     u8 index = chunk->code.data[offset + 1];
     printf("%s %03d '", name, index);
-    value_print(chunk->constants.values[index]);
+    value_print(chunk->constants.values[index], true);
     printf("'");
     return offset + 2;
 }
@@ -23,7 +23,7 @@ static size_t const_long_instr(const char *name, Chunk *chunk, size_t offset)
 {
     u16 index = TOU16(chunk->code.data[offset + 1], chunk->code.data[offset + 2]);
     printf("%s %05d '", name, index);
-    value_print(chunk->constants.values[index]);
+    value_print(chunk->constants.values[index], true);
     printf("'");
     return offset + 3;
 }
@@ -56,7 +56,7 @@ static size_t closure_instr(const char *name, Chunk *chunk, size_t offset)
     u8 b2 = chunk->code.data[offset++];
     u16 constant = TOU16(b1, b2);
     printf("%s %03d '", "clo", constant);
-    value_print(chunk->constants.values[constant]);
+    value_print(chunk->constants.values[constant], true);
     printf("'");
 
     ObjFunction *fun = AS_FUNCTION(chunk->constants.values[constant]);
@@ -76,7 +76,7 @@ static size_t invoke_instr(const char *name, Chunk *chunk, size_t offset)
     u16 constant = chunk->code.data[offset + 1];
     u8 argc      = chunk->code.data[offset + 2];
     printf("%s (%03d args) %05d '", name, argc, constant);
-    value_print(chunk->constants.values[constant]);
+    value_print(chunk->constants.values[constant], true);
     printf("'");
     return offset + 4;
 }

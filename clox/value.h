@@ -119,7 +119,7 @@ VECTOR_DECLARE_INIT(ValueArray, Value, valuearray);
 VECTOR_DECLARE_WRITE(ValueArray, Value, valuearray);
 VECTOR_DECLARE_FREE(ValueArray, Value, valuearray);
 
-void value_print(Value value);
+void value_print(Value value, bool debug);
 bool value_equal(Value a, Value b);
 Value value_tostring(Value value);
 u32 value_hash(Value value);

@@ -26,7 +26,7 @@ static void print_stack()
     else {
         for (Value *p = vm.stack; p < vm.sp; p++) {
             printf("[");
-            value_print(*p);
+            value_print(*p, true);
             printf("]");
         }
         printf("\n");
@@ -453,7 +453,7 @@ static VMResult run()
             vm.sp[-1] = VALUE_MKNUM(-AS_NUM(vm.sp[-1]));
             break;
         case OP_PRINT:
-            value_print(vm_pop());
+            value_print(vm_pop(), false);
             printf("\n");
             break;
         case OP_BRANCH: {

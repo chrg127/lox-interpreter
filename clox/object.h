@@ -116,7 +116,7 @@ ObjClosure *obj_make_closure(ObjFunction *fun);
 ObjClass *obj_make_class(ObjString *name);
 ObjInstance *obj_make_instance(ObjClass *klass);
 ObjBoundMethod *obj_make_bound_method(Value receiver, ObjClosure *method);
-void obj_print(Value value);
+void obj_print(Value value, bool debug);
 void obj_free(Obj *obj);
 void obj_free_arr(Obj *objects);
 u32 obj_hash(Obj *obj);
