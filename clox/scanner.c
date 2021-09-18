@@ -78,6 +78,15 @@ static void skip_whitespace()
             if (peek_next() == '/') {
                 while (peek() != '\n' && !at_end())
                     advance();
+            } else if (peek_next() == '*') {
+                while (!(peek() == '*' && peek_next() == '/') && !at_end()) {
+                    if (peek() == '\n')
+                        scanner.line++;
+                    advance();
+                }
+                // get rid of the '*/'
+                advance();
+                advance();
             } else
                 return;
             break;
