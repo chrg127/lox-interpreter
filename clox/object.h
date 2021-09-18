@@ -51,8 +51,8 @@ typedef struct {
 
 typedef struct ObjUpvalue {
     Obj obj;
-    Value *location;
-    Value closed;
+    Value *location;            // pointer to the value it closes over
+    Value closed;               // location of the closed variable after the upvalue becomes closed
     struct ObjUpvalue *next;
 } ObjUpvalue;
 

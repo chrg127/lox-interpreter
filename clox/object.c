@@ -6,6 +6,7 @@
 #include "table.h"
 #include "vm.h"
 #include "debug.h"
+#include "list.h"
 
 #ifdef DEBUG_LOG_GC
 static const char *type_tostring(ObjType type)
@@ -26,8 +27,7 @@ static Obj *alloc_obj(size_t size, ObjType type)
     Obj *obj = reallocate(NULL, 0, size);
     obj->type = type;
     obj->marked = false;
-    obj->next = vm.objects;
-    vm.objects = obj;
+    LIST_APPEND(obj, vm.objects, next);
 
 #ifdef DEBUG_LOG_GC
     printf("%p allocate %zu for %s\n", (void *) obj, size, type_tostring(type));
@@ -225,11 +225,8 @@ void obj_free(Obj *obj)
 
 void obj_free_arr(Obj *objects)
 {
-    Obj *obj = objects;
-    while (obj != NULL) {
-        Obj *next = obj->next;
+    LIST_FOR_EACH_SAFE(Obj, objects, obj) {
         obj_free(obj);
-        obj = next;
     }
 }
 

@@ -17,7 +17,7 @@ static void mark_roots()
 {
     for (Value *slot = vm.stack; slot < vm.sp; slot++)
         gc_mark_value(*slot);
-    for (size_t i = 0; i < vm.frame_size; i++)
+    for (size_t i = 0; i < vm.frame_count; i++)
         gc_mark_obj((Obj *) vm.frames[i].closure);
     LIST_FOR_EACH(ObjUpvalue, vm.open_upvalues, upvalue)
         gc_mark_obj((Obj *) upvalue);
@@ -91,17 +91,12 @@ static void trace_refs()
 
 static void remove_whites(Table *tab)
 {
-    // TABLE_FOR_EACH(tab, entry) {
-    //     if (entry->key != NULL && !entry->key->obj.marked)
-    //         table_delete(tab, entry->key);
-    // }
-    for (size_t i = 0; i < tab->cap; i++) {
-        Entry *entry = &tab->entries[i];
-        if (!IS_STRING(entry->key))
+    TABLE_FOR_EACH(tab, entry) {
+        if (!IS_OBJ(entry->key))
             continue;
-        ObjString *key = AS_STRING(entry->key);
-        if (!key->obj.marked)
-            table_delete(tab, key);
+        Obj *obj = AS_OBJ(entry->key);
+        if (!obj->marked)
+            table_delete_value(tab, entry->key);
     }
 }
 
@@ -174,12 +169,7 @@ void gc_collect()
 
 void gc_mark_table(Table *tab)
 {
-    // TABLE_FOR_EACH(tab, entry) {
-    //     gc_mark_obj((Obj *)entry->key);
-    //     gc_mark_value(entry->value);
-    // }
-    for (size_t i = 0; i < tab->cap; i++) {
-        Entry *entry = &tab->entries[i];
+    TABLE_FOR_EACH(tab, entry) {
         gc_mark_value(entry->key);
         gc_mark_value(entry->value);
     }

@@ -56,13 +56,13 @@ static void concat()
 static void reset_stack()
 {
     vm.sp = vm.stack;
-    vm.frame_size = 0;
+    vm.frame_count = 0;
     vm.open_upvalues = NULL;
 }
 
 static void v_runtime_error(const char *fmt, va_list args)
 {
-    CallFrame *frame = &vm.frames[vm.frame_size - 1];
+    CallFrame *frame = &vm.frames[vm.frame_count - 1];
     size_t offset = vm.ip - frame->fun->chunk.code.data - 1;
     int line = chunk_get_line(&frame->fun->chunk, offset);
     fprintf(stderr, "%s:%d: runtime error: ", vm.filename, line);
@@ -71,10 +71,10 @@ static void v_runtime_error(const char *fmt, va_list args)
     fputs("\n", stderr);
 
     // update current frame ip
-    vm.frames[vm.frame_size-1].ip = vm.ip;
+    vm.frames[vm.frame_count-1].ip = vm.ip;
 
     fprintf(stderr, "traceback:\n");
-    for (int i = vm.frame_size - 1; i >= 0; i--) {
+    for (int i = vm.frame_count - 1; i >= 0; i--) {
         CallFrame *frame = &vm.frames[i];
         ObjFunction *fun = frame->fun;
         size_t offset = frame->ip - fun->chunk.code.data - 1;
@@ -118,11 +118,11 @@ static bool call_generic(Value funobj, u8 argc)
         runtime_error("expected %d arguments, got %d", arity, argc);
         return false;
     }
-    if (vm.frame_size == FRAMES_MAX) {
+    if (vm.frame_count == FRAMES_MAX) {
         runtime_error("stack overflow");
         return false;
     }
-    CallFrame *frame = &vm.frames[vm.frame_size++];
+    CallFrame *frame = &vm.frames[vm.frame_count++];
     if (IS_CLOSURE(funobj)) {
         ObjClosure *closure = AS_CLOSURE(funobj);
         frame->closure = closure;
@@ -211,16 +211,23 @@ static bool invoke(ObjString *name, u8 argc)
     return invoke_from_class(inst->klass, name, argc);
 }
 
+/*
+ * The two functions below operate on the vm.open_upvalues list.
+ * capture_upvalue() adds upvalues to the list.
+ * close_upvalues() clears the list, changing every element in the process.
+ */
+
 static ObjUpvalue *capture_upvalue(Value *local)
 {
-    ObjUpvalue *prev = NULL;
-    ObjUpvalue *entry = vm.open_upvalues;
+    // look for an exisiting upvalue that closes over *local
+    ObjUpvalue *prev = NULL, *entry = vm.open_upvalues;
     while (entry != NULL && entry->location > local) {
         prev = entry;
         entry = entry->next;
     }
     if (entry != NULL && entry->location == local)
         return entry;
+    // create an upvalue and add it to the sorted list
     ObjUpvalue *created = obj_make_upvalue(local);
     created->next = entry;
     if (prev == NULL)
@@ -232,11 +239,13 @@ static ObjUpvalue *capture_upvalue(Value *local)
 
 static void close_upvalues(Value *last)
 {
-    while (vm.open_upvalues != NULL && vm.open_upvalues->location >= last) {
-        ObjUpvalue *upvalue = vm.open_upvalues;
+    for (ObjUpvalue *upvalue = vm.open_upvalues;
+         vm.open_upvalues != NULL && vm.open_upvalues->location >= last;
+         vm.open_upvalues  = upvalue->next) {
+        // move variable inside upvalue
         upvalue->closed   = *upvalue->location;
+        // point to inside upvalue instead of the stack
         upvalue->location = &upvalue->closed;
-        vm.open_upvalues  = upvalue->next;
     }
 }
 
@@ -272,7 +281,7 @@ static void define_native(const char *name, NativeFn fun, u8 arity)
 
 static VMResult run()
 {
-    CallFrame *frame = &vm.frames[vm.frame_size - 1];
+    CallFrame *frame = &vm.frames[vm.frame_count - 1];
     vm.ip = frame->ip;
 
 #define READ_BYTE() (*vm.ip++)
@@ -464,7 +473,7 @@ static VMResult run()
             frame->ip = vm.ip;
             if (!call_value(peek(argc), argc))
                 return VM_RUNTIME_ERROR;
-            frame = &vm.frames[vm.frame_size-1];
+            frame = &vm.frames[vm.frame_count-1];
             vm.ip = frame->ip;
             break;
         }
@@ -474,7 +483,7 @@ static VMResult run()
             frame->ip = vm.ip;
             if (!invoke(method, argc))
                 return VM_RUNTIME_ERROR;
-            frame = &vm.frames[vm.frame_size-1];
+            frame = &vm.frames[vm.frame_count-1];
             vm.ip = frame->ip;
             break;
         }
@@ -484,20 +493,20 @@ static VMResult run()
             ObjClass *superclass = AS_CLASS(vm_pop());
             if (!invoke_from_class(superclass, method, argc))
                 return VM_RUNTIME_ERROR;
-            frame = &vm.frames[vm.frame_size-1];
+            frame = &vm.frames[vm.frame_count-1];
             break;
         }
         case OP_RETURN: {
             Value result = vm_pop();
             close_upvalues(frame->slots);
-            vm.frame_size--;
-            if (vm.frame_size == 0) {
+            vm.frame_count--;
+            if (vm.frame_count == 0) {
                 vm_pop();
                 return VM_OK;
             }
             vm.sp = frame->slots;
             vm_push(result);
-            frame = &vm.frames[vm.frame_size-1];
+            frame = &vm.frames[vm.frame_count-1];
             vm.ip = frame->ip;
             break;
         }

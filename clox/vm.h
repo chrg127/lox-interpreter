@@ -26,20 +26,23 @@ typedef struct {
 } GrayStack;
 
 typedef struct {
-    const char *filename;
-    CallFrame frames[FRAMES_MAX];
-    size_t frame_size;
-    u8 *ip;
-    Value stack[STACK_MAX];
-    Value *sp;
+    u8 *ip;                         // instruction pointer
+    Value *sp;                      // stack pointer
+    size_t frame_count;
     Table globals;
-    Table strings;
-    ObjString *init_string;
-    ObjUpvalue *open_upvalues;
+    Table strings;                  // interned strings; see alloc_str()
+    Obj *objects;                   // linked list of all allocated object; see alloc_obj()
+    ObjUpvalue *open_upvalues;      // sorted linked list of upvalues that still point to a variable on the stack
+
+    const char *filename;           // name of file passed by argv, or "script" if none
+    ObjString *init_string;         // interned string "init" for fast ctor access
+
     size_t bytes_allocated;
-    size_t next_gc;
-    Obj *objects;
-    GrayStack gray_stack;
+    size_t next_gc;                 // how many bytes must be allocated to trigger the garbage collector
+    GrayStack gray_stack;           // used by gc to hold traced objects; see gc_mark_obj()
+
+    Value stack[STACK_MAX];
+    CallFrame frames[FRAMES_MAX];
 } VM;
 
 extern VM vm;

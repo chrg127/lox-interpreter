@@ -80,8 +80,8 @@ typedef struct Compiler {
     bool inside_loop;
     size_t loop_start;
     struct Compiler *enclosing;
-    Local locals[LOCAL_COUNT];
-    Upvalue upvalues[UPVALUE_COUNT]; // count for upvalues is kept in fun
+    Local *locals;              // array of LOCAL_COUNT size, heap allocated
+    Upvalue *upvalues;          // array of UPVALUE_COUNT size, heap allocated; count for upvalues is kept in fun
 } Compiler;
 
 typedef struct ClassCompiler {
@@ -259,6 +259,9 @@ static void compiler_init(Compiler *compiler, FunctionType type, Token *name)
     // we assign NULL to function first due to garbage collection
     compiler->fun = NULL;
     compiler->fun = obj_make_fun();
+    // these arrays are allocated manually so that the garbage collector is not triggered on these
+    compiler->locals   = calloc(LOCAL_COUNT,   sizeof(Local));
+    compiler->upvalues = calloc(UPVALUE_COUNT, sizeof(Upvalue));
 
     LIST_APPEND(compiler, curr, enclosing);
 
@@ -287,6 +290,12 @@ static ObjFunction *compiler_end()
 #endif
     curr = curr->enclosing;
     return fun;
+}
+
+static void compiler_free(Compiler *compiler)
+{
+    free(compiler->locals);
+    free(compiler->upvalues);
 }
 
 
@@ -479,6 +488,8 @@ static void function(FunctionType type, Token *name)
     emit_u16(OP_CLOSURE, make_constant(VALUE_MKOBJ(fun)));
     for (int i = 0; i < fun->upvalue_count; i++)
         emit_u16((u8)compiler.upvalues[i].is_local, compiler.upvalues[i].index);
+
+    compiler_free(&compiler);
 }
 
 static void fun_decl()
@@ -1030,6 +1041,7 @@ ObjFunction *compile(const char *src, const char *filename)
         decl();
 
     ObjFunction *fun = compiler_end();
+    compiler_free(&compiler);
     return parser.had_error ? NULL : fun;
 }
 
