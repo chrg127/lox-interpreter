@@ -256,22 +256,30 @@ static void close_upvalues(Value *last)
     }
 }
 
-static void define_method(ObjString *name)
+static bool define_method(ObjString *name)
 {
     Value method = peek(0);
     ObjClass *klass = AS_CLASS(peek(1));
-    table_install(&klass->methods, name, method);
+    if (!table_install(&klass->methods, name, method)) {
+        runtime_error("redefinition of method '%s' for class '%s'", name->data, klass->name->data);
+        return false;
+    }
     if (strncmp(name->data, "init", MIN(name->len, 4)) == 0)
         klass->ctor = method;
     vm_pop();
+    return true;
 }
 
-static void define_static_method(ObjString *name)
+static bool define_static_method(ObjString *name)
 {
     Value method = peek(0);
     ObjClass *klass = AS_CLASS(peek(1));
-    table_install(&klass->statics, name, method);
+    if (!table_install(&klass->statics, name, method)) {
+        runtime_error("redefinition of method '%s' for class '%s'", name->data, klass->name->data);
+        return false;
+    }
     vm_pop();
+    return true;
 }
 
 static bool bind_method_from_table(Table *methods, ObjString *name)
@@ -578,10 +586,12 @@ static VMResult run()
             break;
         }
         case OP_METHOD:
-            define_method(READ_STRING());
+            if (!define_method(READ_STRING()))
+                return VM_RUNTIME_ERROR;
             break;
         case OP_STATIC:
-            define_static_method(READ_STRING());
+            if (!define_static_method(READ_STRING()))
+                return VM_RUNTIME_ERROR;
             break;
         default:
             runtime_error("unknown opcode: %d", instr);
