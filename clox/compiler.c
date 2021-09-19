@@ -77,12 +77,16 @@ typedef struct Compiler {
     FunctionType type;
     int local_count;
     int scope_depth;
-    bool inside_loop;
-    size_t loop_start;
     struct Compiler *enclosing;
     Local *locals;              // array of LOCAL_COUNT size, heap allocated
     Upvalue *upvalues;          // array of UPVALUE_COUNT size, heap allocated; count for upvalues is kept in fun
 } Compiler;
+
+typedef struct LoopCompiler {
+    size_t start;
+    VecSizet break_offsets;
+    struct LoopCompiler *enclosing;
+} LoopCompiler;
 
 typedef struct ClassCompiler {
     bool has_super;
@@ -90,8 +94,9 @@ typedef struct ClassCompiler {
 } ClassCompiler;
 
 Parser parser;
-Compiler *curr = NULL;
+Compiler *curr            = NULL;
 ClassCompiler *curr_class = NULL;
+LoopCompiler *curr_loop   = NULL;
 Table global_consts;
 
 
@@ -254,8 +259,6 @@ static void compiler_init(Compiler *compiler, FunctionType type, Token *name)
     compiler->type = type;
     compiler->local_count = 0;
     compiler->scope_depth = 0;
-    compiler->inside_loop = false;
-    compiler->loop_start = 0;
     // we assign NULL to function first due to garbage collection
     compiler->fun = NULL;
     compiler->fun = obj_make_fun();
@@ -625,32 +628,28 @@ static void if_stmt()
     patch_branch(else_offset);
 }
 
-#define BEGIN_LOOP() \
-    bool old_inside_loop = curr->inside_loop; \
-    size_t old_loop_start = curr->loop_start; \
-    curr->inside_loop = true;                 \
-    curr->loop_start = loop_start;            \
-
-#define END_LOOP() \
-    curr->inside_loop = old_inside_loop; \
-    curr->loop_start = old_loop_start;   \
-
 static void while_stmt()
 {
-    size_t loop_start = curr_chunk()->code.size;
+    LoopCompiler compiler;
+    LIST_APPEND(&compiler, curr_loop, enclosing);
+    vec_size_t_init(&compiler.break_offsets);
+    compiler.start = curr_chunk()->code.size;
+
     consume(TOKEN_LEFT_PAREN, "expected '(' after 'while'");
     expr();
     consume(TOKEN_RIGHT_PAREN, "expected ')' after condition");
-    size_t exit_offset = emit_branch(OP_BRANCH_FALSE);
+    size_t exit = emit_branch(OP_BRANCH_FALSE);
     emit_byte(OP_POP);
 
-    BEGIN_LOOP()
     stmt();
-    END_LOOP()
 
-    emit_loop(loop_start);
-    patch_branch(exit_offset);
+    emit_loop(compiler.start);
+    patch_branch(exit);
     emit_byte(OP_POP);
+    for (size_t i = 0; i < compiler.break_offsets.size; i++)
+        patch_branch(compiler.break_offsets.data[i]);
+    vec_size_t_free(&compiler.break_offsets);
+    curr_loop = curr_loop->enclosing;
 }
 
 static void for_stmt()
@@ -662,12 +661,16 @@ static void for_stmt()
     else if (match(TOKEN_CONST))     var_decl(true);
     else                             expr_stmt();
 
-    size_t loop_start = curr_chunk()->code.size;
-    size_t exit_offset = 0;
+    LoopCompiler compiler;
+    LIST_APPEND(&compiler, curr_loop, enclosing);
+    vec_size_t_init(&compiler.break_offsets);
+    compiler.start = curr_chunk()->code.size;
+    size_t exit = 0;
+
     if (!match(TOKEN_SEMICOLON)) {
         expr();
         consume(TOKEN_SEMICOLON, "expected ';' after loop condition");
-        exit_offset = emit_branch(OP_BRANCH_FALSE);
+        exit = emit_branch(OP_BRANCH_FALSE);
         emit_byte(OP_POP);
     }
 
@@ -677,26 +680,24 @@ static void for_stmt()
         expr();
         emit_byte(OP_POP);
         consume(TOKEN_RIGHT_PAREN, "expected ')' at end of 'for'");
-        emit_loop(loop_start);
-        loop_start = increment_start;
+        emit_loop(compiler.start);
+        compiler.start = increment_start;
         patch_branch(body_offset);
     }
 
-    BEGIN_LOOP()
     stmt();
-    END_LOOP()
-    emit_loop(loop_start);
 
-    if (exit_offset != 0) {
-        patch_branch(exit_offset);
+    emit_loop(compiler.start);
+    if (exit != 0) {
+        patch_branch(exit);
         emit_byte(OP_POP);
     }
-
+    for (size_t i = 0; i < compiler.break_offsets.size; i++)
+        patch_branch(compiler.break_offsets.data[i]);
+    vec_size_t_free(&compiler.break_offsets);
     end_scope();
+    curr_loop = curr_loop->enclosing;
 }
-
-#undef BEGIN_LOOP
-#undef END_LOOP
 
 static void return_stmt()
 {
@@ -715,10 +716,19 @@ static void return_stmt()
 
 static void continue_stmt()
 {
-    if (!curr->inside_loop)
+    if (curr_loop == NULL)
         error("continue statement not inside a loop");
     consume(TOKEN_SEMICOLON, "expected semicolon after 'continue'");
-    emit_loop(curr->loop_start);
+    emit_loop(curr_loop->start);
+}
+
+static void break_stmt()
+{
+    if (curr_loop == NULL)
+        error("break statement not inside a loop");
+    consume(TOKEN_SEMICOLON, "expected semicolon after 'break'");
+    size_t offset = emit_branch(OP_BRANCH);
+    vec_size_t_write(&curr_loop->break_offsets, offset);
 }
 
 static void switch_stmt()
@@ -774,13 +784,14 @@ static void expr_stmt()
 
 static void stmt()
 {
-         if (match(TOKEN_PRINT))  print_stmt();
-    else if (match(TOKEN_IF))     if_stmt();
-    else if (match(TOKEN_WHILE))  while_stmt();
-    else if (match(TOKEN_FOR))    for_stmt();
-    else if (match(TOKEN_RETURN)) return_stmt();
+         if (match(TOKEN_PRINT))    print_stmt();
+    else if (match(TOKEN_IF))       if_stmt();
+    else if (match(TOKEN_WHILE))    while_stmt();
+    else if (match(TOKEN_FOR))      for_stmt();
+    else if (match(TOKEN_RETURN))   return_stmt();
     else if (match(TOKEN_CONTINUE)) continue_stmt();
-    else if (match(TOKEN_SWITCH)) switch_stmt();
+    else if (match(TOKEN_BREAK))    break_stmt();
+    else if (match(TOKEN_SWITCH))   switch_stmt();
     else if (match(TOKEN_LEFT_BRACE)) {
         begin_scope();
         block();

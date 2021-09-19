@@ -146,6 +146,7 @@ static TokenType ident_type()
 {
     switch (scanner.start[0]) {
     case 'a': return check_keyword(1, 2, "nd",   TOKEN_AND);
+    case 'b': return check_keyword(1, 4, "reak", TOKEN_BREAK);
     case 'c':
         if (scanner.curr - scanner.start > 1) {
             switch (scanner.start[1]) {
