@@ -78,11 +78,11 @@ static void v_runtime_error(const char *fmt, va_list args)
         CallFrame *frame = &vm.frames[i];
         ObjFunction *fun = frame->fun;
         size_t offset = frame->ip - fun->chunk.code.data - 1;
-        fprintf(stderr, "at %s:%ld: in ", vm.filename, chunk_get_line(&fun->chunk, offset));
+        fprintf(stderr, "at %s:%ld in ", vm.filename, chunk_get_line(&fun->chunk, offset));
         if (fun->name == NULL)
-            fprintf(stderr, "script\n");
+            fprintf(stderr, "<script>\n");
         else
-            fprintf(stderr, "%s()\n", fun->name->data);
+            fprintf(stderr, "<%s()>\n", fun->name->data);
     }
 
     reset_stack();
@@ -462,7 +462,19 @@ static VMResult run()
             break;
         case OP_SUB:    BINARY_OP(VALUE_MKNUM, -); break;
         case OP_MUL:    BINARY_OP(VALUE_MKNUM, *); break;
-        case OP_DIV:    BINARY_OP(VALUE_MKNUM, /); break;
+        case OP_DIV:
+            if (!IS_NUM(peek(0)) || !IS_NUM(peek(1))) {
+                runtime_error("operands must be numbers");
+                return VM_RUNTIME_ERROR;
+            }
+            double b = AS_NUM(vm_pop());
+            double a = AS_NUM(vm_pop());
+            if (b == 0) {
+                runtime_error("attempt to divide by 0");
+                return VM_RUNTIME_ERROR;
+            }
+            vm_push(VALUE_MKNUM(a / b));
+            break;
         case OP_NOT: {
             vm_push(VALUE_MKBOOL(is_falsey(vm_pop())));
             break;
