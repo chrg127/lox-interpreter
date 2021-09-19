@@ -62,6 +62,7 @@ typedef enum {
     TYPE_FUNCTION,
     TYPE_CTOR,
     TYPE_METHOD,
+    TYPE_STATIC,
     TYPE_SCRIPT,
 } FunctionType;
 
@@ -538,13 +539,14 @@ static void named_var(Token name, bool can_assign)
 
 static void method()
 {
+    bool is_static = match(TOKEN_STATIC);
     consume(TOKEN_IDENT, "expected method name");
     u16 constant = make_ident_constant(&parser.prev);
-    FunctionType type = TYPE_METHOD;
-    if (parser.prev.len == 4 && memcmp(parser.prev.start, "init", 4) == 0)
+    FunctionType type = is_static ? TYPE_STATIC : TYPE_METHOD;
+    if (!is_static && parser.prev.len == 4 && memcmp(parser.prev.start, "init", 4) == 0)
         type = TYPE_CTOR;
     function(type, &parser.prev);
-    emit_u16(OP_METHOD, constant);
+    emit_u16(!is_static ? OP_METHOD : OP_STATIC, constant);
 }
 
 static void class_decl()

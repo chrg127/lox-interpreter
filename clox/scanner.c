@@ -183,6 +183,7 @@ static TokenType ident_type()
     case 's':
         if (scanner.curr - scanner.start > 1) {
             switch (scanner.start[1]) {
+            case 't': return check_keyword(2, 4, "atic", TOKEN_STATIC);
             case 'u': return check_keyword(2, 3, "per",  TOKEN_SUPER);
             case 'w': return check_keyword(2, 4, "itch", TOKEN_SWITCH);
             }

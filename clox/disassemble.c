@@ -137,7 +137,9 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_CLOSURE:        return closure_instr("clo", chunk, offset);
     case OP_CLOSE_UPVALUE:  return simple_instr("clu", offset);
     case OP_CLASS:          return const_long_instr("dfc", chunk, offset);
+    case OP_INHERIT:        return simple_instr("inh", offset);
     case OP_METHOD:         return const_long_instr("dfm", chunk, offset);
+    case OP_STATIC:         return const_long_instr("dfs", chunk, offset);
     default:
         printf("[unknown] [%d]", instr);
         return offset + 1;

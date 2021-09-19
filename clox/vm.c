@@ -78,7 +78,7 @@ static void v_runtime_error(const char *fmt, va_list args)
         CallFrame *frame = &vm.frames[i];
         ObjFunction *fun = frame->fun;
         size_t offset = frame->ip - fun->chunk.code.data - 1;
-        fprintf(stderr, "%s:%ld: in ", vm.filename, chunk_get_line(&fun->chunk, offset));
+        fprintf(stderr, "at %s:%ld: in ", vm.filename, chunk_get_line(&fun->chunk, offset));
         if (fun->name == NULL)
             fprintf(stderr, "script\n");
         else
@@ -184,31 +184,38 @@ static bool call_value(Value callee, u8 argc)
     return false;
 }
 
-static bool invoke_from_class(ObjClass *klass, ObjString *name, u8 argc)
+static bool invoke_from_table(Table *methods, ObjString *name, u8 argc)
 {
     Value method;
-    if (!table_lookup(&klass->methods, name, &method)) {
+    if (!table_lookup(methods, name, &method)) {
         runtime_error("undefined property '%s'", name->data);
         return false;
     }
     return call_generic(method, argc);
 }
 
+static inline bool invoke_method(ObjClass *klass, ObjString *name, u8 argc) { return invoke_from_table(&klass->methods, name, argc); }
+static inline bool invoke_static(ObjClass *klass, ObjString *name, u8 argc) { return invoke_from_table(&klass->statics, name, argc); }
+
 static bool invoke(ObjString *name, u8 argc)
 {
     Value receiver = peek(argc);
-    if (!IS_INSTANCE(receiver)) {
-        runtime_error("can't call a method on a non-instance value");
-        return false;
+
+    if (IS_CLASS(receiver))
+        return invoke_static(AS_CLASS(receiver), name, argc);
+
+    if (IS_INSTANCE(receiver)) {
+        ObjInstance *inst = AS_INSTANCE(receiver);
+        Value value;
+        if (table_lookup(&inst->fields, name, &value)) {
+            vm.sp[-argc-1] = value;
+            return call_value(value, argc);
+        }
+        return invoke_method(inst->klass, name, argc);
     }
 
-    ObjInstance *inst = AS_INSTANCE(receiver);
-    Value value;
-    if (table_lookup(&inst->fields, name, &value)) {
-        vm.sp[-argc-1] = value;
-        return call_value(value, argc);
-    }
-    return invoke_from_class(inst->klass, name, argc);
+    runtime_error("can't call a method on a non-instance value");
+    return false;
 }
 
 /*
@@ -259,16 +266,27 @@ static void define_method(ObjString *name)
     vm_pop();
 }
 
-static bool bind_method(ObjClass *klass, ObjString *name)
+static void define_static_method(ObjString *name)
+{
+    Value method = peek(0);
+    ObjClass *klass = AS_CLASS(peek(1));
+    table_install(&klass->statics, name, method);
+    vm_pop();
+}
+
+static bool bind_method_from_table(Table *methods, ObjString *name)
 {
     Value method;
-    if (!table_lookup(&klass->methods, name, &method))
+    if (!table_lookup(methods, name, &method))
         return false;
     ObjBoundMethod *bound = obj_make_bound_method(peek(0), AS_CLOSURE(method));
     vm_pop();
     vm_push(VALUE_MKOBJ(bound));
     return true;
 }
+
+static bool bind_method(ObjClass *klass, ObjString *name) { return bind_method_from_table(&klass->methods, name); }
+static bool bind_static(ObjClass *klass, ObjString *name) { return bind_method_from_table(&klass->statics, name); }
 
 static void define_native(const char *name, NativeFn fun, u8 arity)
 {
@@ -374,25 +392,33 @@ static VMResult run()
             break;
         }
         case OP_GET_PROPERTY: {
-            if (!IS_INSTANCE(peek(0))) {
-                runtime_error("attempt to get a property from a non-instance value");
+            if (IS_CLASS(peek(0))) {
+                ObjClass *klass = AS_CLASS(peek(0));
+                ObjString *name = READ_STRING();
+                if (bind_static(klass, name))
+                    break;
+                runtime_error("undefined property '%s'", name->data);
                 return VM_RUNTIME_ERROR;
             }
 
-            ObjInstance *inst = AS_INSTANCE(peek(0));
-            ObjString *name = READ_STRING();
-            Value value;
-            // field?
-            if (table_lookup(&inst->fields, name, &value)) {
-                vm_pop();
-                vm_push(value);
-                break;
+            if (IS_INSTANCE(peek(0))) {
+                ObjInstance *inst = AS_INSTANCE(peek(0));
+                ObjString *name = READ_STRING();
+                // field?
+                Value value;
+                if (table_lookup(&inst->fields, name, &value)) {
+                    vm_pop();
+                    vm_push(value);
+                    break;
+                }
+                // method?
+                if (bind_method(inst->klass, name))
+                    break;
+                runtime_error("undefined property '%s'", name->data);
+                return VM_RUNTIME_ERROR;
             }
-            // method?
-            if (bind_method(inst->klass, name))
-                break;
 
-            runtime_error("undefined property '%s'", name->data);
+            runtime_error("attempt to get a property from a non-instance value");
             return VM_RUNTIME_ERROR;
         }
         case OP_SET_PROPERTY: {
@@ -491,7 +517,7 @@ static VMResult run()
             ObjString *method = READ_STRING();
             u8 argc = READ_BYTE();
             ObjClass *superclass = AS_CLASS(vm_pop());
-            if (!invoke_from_class(superclass, method, argc))
+            if (!invoke_method(superclass, method, argc))
                 return VM_RUNTIME_ERROR;
             frame = &vm.frames[vm.frame_count-1];
             break;
@@ -529,9 +555,6 @@ static VMResult run()
         case OP_CLASS:
             vm_push(VALUE_MKOBJ(obj_make_class(READ_STRING())));
             break;
-        case OP_METHOD:
-            define_method(READ_STRING());
-            break;
         case OP_INHERIT: {
             Value superclass = peek(1);
             if (!IS_CLASS(superclass)) {
@@ -542,6 +565,12 @@ static VMResult run()
             table_add_all(&AS_CLASS(superclass)->methods, &subclass->methods);
             break;
         }
+        case OP_METHOD:
+            define_method(READ_STRING());
+            break;
+        case OP_STATIC:
+            define_static_method(READ_STRING());
+            break;
         default:
             runtime_error("unknown opcode: %d", instr);
             return VM_RUNTIME_ERROR;

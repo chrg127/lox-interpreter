@@ -68,6 +68,7 @@ typedef struct {
     ObjString *name;
     Value ctor;
     Table methods;
+    Table statics;
 } ObjClass;
 
 typedef struct {
