@@ -24,8 +24,8 @@
 
 typedef enum {
     PREC_NONE,
+    PREC_COMMA,    // ,
     PREC_ASSIGN,    // =
-    PREC_CONDEXPR,  // ?:
     PREC_OR,        // or
     PREC_AND,       // and
     PREC_EQ,        // == !=
@@ -439,6 +439,7 @@ static int resolve_upvalue(Compiler *compiler, Token *name)
 static ParseRule *get_rule(TokenType type);
 static void stmt();
 static void expr();
+static void assignment();
 static void block();
 static void expr_stmt();
 static void variable(bool can_assign);
@@ -455,7 +456,7 @@ static void var_decl(bool is_const)
 {
     u16 global = parse_var(is_const, "expected variable name");
     if (match(TOKEN_EQ))
-        expr();
+        assignment();
     else
         emit_byte(OP_NIL);
     consume(TOKEN_SEMICOLON, "expected ';' after variable declaration");
@@ -531,7 +532,7 @@ static void named_var(Token name, bool can_assign)
             error("can't assign to const variable");
             return;
         }
-        expr();
+        assignment();
         emit_u16(setop, arg);
     } else
         emit_u16(getop, arg);
@@ -824,7 +825,18 @@ static void parse_precedence(Precedence prec)
 
 static void expr()
 {
+    parse_precedence(PREC_COMMA);
+}
+
+static void assignment()
+{
     parse_precedence(PREC_ASSIGN);
+}
+
+static void comma(bool can_assign)
+{
+    emit_byte(OP_POP);
+    parse_precedence(PREC_COMMA);
 }
 
 static void and_op(bool can_assign)
@@ -874,7 +886,7 @@ static u8 arglist()
             if (argc == 255)
                 error("function argument limit reached");
             else {
-                expr();
+                assignment();
                 argc++;
             }
         } while (match(TOKEN_COMMA));
@@ -894,7 +906,7 @@ static void dot(bool can_assign)
     consume(TOKEN_IDENT, "expected property name after '.'");
     u16 name = make_ident_constant(&parser.prev);
     if (can_assign && match(TOKEN_EQ)) {
-        expr();
+        assignment();
         emit_u16(OP_SET_PROPERTY, name);
     } else if (match(TOKEN_LEFT_PAREN)) {
         u8 argc = arglist();
@@ -990,15 +1002,15 @@ static ParseRule rules[] = {
     [TOKEN_RIGHT_PAREN] = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_LEFT_BRACE]  = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_RIGHT_BRACE] = { NULL,       NULL,   PREC_NONE   },
-    [TOKEN_COMMA]       = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_COMMA]       = { NULL,       comma,  PREC_COMMA  },
     [TOKEN_DOT]         = { NULL,       dot,    PREC_CALL   },
     [TOKEN_MINUS]       = { unary,      binary, PREC_TERM   },
     [TOKEN_PLUS]        = { NULL,       binary, PREC_TERM   },
     [TOKEN_SEMICOLON]   = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_SLASH]       = { NULL,       binary, PREC_FACTOR },
     [TOKEN_STAR]        = { NULL,       binary, PREC_FACTOR },
-    [TOKEN_QMARK]       = { NULL,       NULL,   PREC_NONE }, //condexpr,   PREC_CONDEXPR },
-    [TOKEN_DCOLON]      = { NULL,       NULL,   PREC_NONE },
+    [TOKEN_QMARK]       = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_DCOLON]      = { NULL,       NULL,   PREC_NONE   },
     [TOKEN_BANG]        = { unary,      NULL,   PREC_NONE   },
     [TOKEN_BANG_EQ]     = { NULL,       binary, PREC_EQ     },
     [TOKEN_EQ]          = { NULL,       NULL,   PREC_NONE   },

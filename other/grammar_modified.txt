@@ -29,9 +29,7 @@ stmt            : expr_stmt
                 | block ;
 
 expr_stmt       : expr ";" ;
-for_stmt        : "for" "(" ( var_decl | expr_stmt | ";" )
-                              expr? ";"
-                              expr? ")" stmt ;
+for_stmt        : "for" "(" ( var_decl | expr_stmt | ";" ) expr? ";" expr? ")" stmt ;
 if_stmt         : "if" "(" expr ")" stmt ( "else" stmt )? ;
 print_stmt      : "print" expr ";" ;
 return_stmt     : "return expr? ";" ;

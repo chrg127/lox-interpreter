@@ -1,0 +1,19 @@
+var i;
+var j;
+i = 0, j = 1;
+print 1, 2;
+
+fun print_three(a, b, c)
+{
+    print a;
+    print b;
+    print c;
+}
+
+print_three("hello", "hi", "str");
+
+var i;
+var j;
+for (i = 0, j = 1; i < 10; i = i+1, j = j+1) {
+    print i+j;
+}
