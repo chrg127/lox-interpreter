@@ -42,12 +42,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     // used to keep track of any unused variables
     private final Map<String, Token> unused = new HashMap<>();
 
-    public Resolver(Interpreter interpreter, List<String> builtinNames) {
+    public Resolver(Interpreter interpreter) {
         this.interpreter = interpreter;
-        // create a scope for global variables
-        beginScope();
-        for (var name : builtinNames)
-            scopes.peek().putVar(name, true);
     }
 
     private void resolve(Stmt stmt) { stmt.accept(this); }
@@ -62,6 +58,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     private void endScope()   { scopes.pop(); }
 
     private void declare(Token name) {
+        if (scopes.isEmpty())
+            return;
         if (scopes.peek().vars.containsKey(name.lexeme)) {
             Lox.error(name, "redefinition of variable " + name.lexeme + " in the same scope");
             return;
@@ -71,6 +69,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     }
 
     private void define(Token name) {
+        if (scopes.isEmpty())
+            return;
         scopes.peek().updateVar(name.lexeme, true);
     }
 
@@ -280,9 +280,11 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitVariableExpr(Expr.Variable expr) {
-        var variable = scopes.peek().vars.get(expr.name.lexeme);
-        if (variable != null && variable.declared == false)
-            Lox.error(expr.name, "can't read local variable in its own initializer");
+        if (!scopes.isEmpty()) {
+            var variable = scopes.peek().vars.get(expr.name.lexeme);
+            if (variable != null && variable.declared == false)
+                Lox.error(expr.name, "can't read local variable in its own initializer");
+        }
         unused.remove(expr.name.lexeme);
         resolveLocal(expr, expr.name);
         return null;

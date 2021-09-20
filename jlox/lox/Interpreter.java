@@ -8,34 +8,26 @@ import java.util.stream.Collectors;
 
 class Interpreter implements Expr.Visitor<Object>,
                              Stmt.Visitor<Void> {
-    private Environment env = new Environment();
-    private Resolver resolver;
-
     static class LocalInfo {
         int dist, index;
         LocalInfo(int dist, int index) { this.dist = dist; this.index = index; }
     }
 
-    private final Map<Expr, LocalInfo> vars = new HashMap<>();
+    private Environment env = null;
+    private HashMap<String, Object> globals = new HashMap<>();
+    private final Map<Expr, LocalInfo> locals = new HashMap<>();
 
     public Interpreter() {
-        // at this point, env must be the global environment
-        env.define("clock", new LoxCallable() {
+        globals.put("clock", new LoxCallable() {
             @Override
             public int arity() { return 0; }
+            @Override
             public Object call(Interpreter interpreter, List<Object> arguments) {
                 return (double)System.currentTimeMillis() / 1000.0;
             }
             @Override
             public String toString() { return "<native fn clock>"; }
         });
-        var builtins = new ArrayList<String>();
-        builtins.add("clock");
-        resolver = new Resolver(this, builtins);
-    }
-
-    public Resolver getResolver() {
-        return resolver;
     }
 
     public void interpret(List<Stmt> statements) {
@@ -62,7 +54,7 @@ class Interpreter implements Expr.Visitor<Object>,
     }
 
     public void resolve(Expr expr, int depth, int index) {
-        vars.put(expr, new LocalInfo(depth, index));
+        locals.put(expr, new LocalInfo(depth, index));
     }
 
     public void execBlock(List<Stmt> statements, Environment env) {
@@ -76,20 +68,18 @@ class Interpreter implements Expr.Visitor<Object>,
         }
     }
 
-    private void exec(Stmt stmt) {
-        stmt.accept(this);
-    }
-
-    public Object eval(Expr expr) {
-        return expr.accept(this);
-    }
+    private void exec(Stmt stmt)  {        stmt.accept(this); }
+    public Object eval(Expr expr) { return expr.accept(this); }
 
     private boolean isTruthy(Object object) {
-        return object == null ? false : object instanceof Boolean ? (boolean) object : true;
+        return object == null ? false
+                              : object instanceof Boolean ? (boolean) object
+                                                          : true;
     }
 
     private boolean isEqual(Object a, Object b) {
-        return a == null ? b == null : a.equals(b);
+        return a == null ? b == null
+                         : a.equals(b);
     }
 
     private String stringify(Object object) {
@@ -127,15 +117,19 @@ class Interpreter implements Expr.Visitor<Object>,
     }
 
     private LocalInfo lookupVariableInfo(Token name, Expr expr) {
-        var info = vars.get(expr);
-        if (info == null)
-            throw new RuntimeError(name, "undefined variable '" + name.lexeme + "'");
-        return info;
+        return locals.get(expr);
     }
 
     private Object lookupVariable(Token name, Expr expr) {
         var info = lookupVariableInfo(name, expr);
-        return env.getAt(info.dist, info.index, name);
+        if (info != null)
+            return env.getAt(info.dist, info.index, name);
+        else {
+            var value = globals.get(name.lexeme);
+            if (value == null)
+                throw new RuntimeError(name, "undefined variable '" + name.lexeme + "'");
+            return value;
+        }
     }
 
     @Override
@@ -181,7 +175,7 @@ class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
-    public Void visitVarStmt(Stmt.Var stmt) {
+    public Void visitlocalstmt(Stmt.Var stmt) {
         int varIndex = env.declare(stmt.name.lexeme);
         if (stmt.initializer != null)
             env.assign(varIndex, eval(stmt.initializer));
@@ -276,7 +270,10 @@ class Interpreter implements Expr.Visitor<Object>,
     public Object visitAssignExpr(Expr.Assign expr) {
         var info = lookupVariableInfo(expr.name, expr);
         Object value = eval(expr.value);
-        env.assignAt(info.dist, info.index, value);
+        if (info != null)
+            env.assignAt(info.dist, info.index, value);
+        else
+            globals.put(expr.name, value);
         return value;
     }
 
