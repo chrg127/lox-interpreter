@@ -781,8 +781,10 @@ static void block()
 static void expr_stmt()
 {
     expr();
-    consume(TOKEN_SEMICOLON, "expected ';' after value");
-    emit_byte(OP_POP);
+    if (parser.prev.type != TOKEN_SEMICOLON) {
+        consume(TOKEN_SEMICOLON, "expected ';' after value");
+        emit_byte(OP_POP);
+    }
 }
 
 static void stmt()
@@ -997,6 +999,8 @@ static void lambda(bool can_assign)
     function(TYPE_FUNCTION, &name);
 }
 
+static void semicolon(bool can_assign) {}
+
 static ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]  = { grouping,   call,   PREC_CALL   },
     [TOKEN_RIGHT_PAREN] = { NULL,       NULL,   PREC_NONE   },
@@ -1006,7 +1010,7 @@ static ParseRule rules[] = {
     [TOKEN_DOT]         = { NULL,       dot,    PREC_CALL   },
     [TOKEN_MINUS]       = { unary,      binary, PREC_TERM   },
     [TOKEN_PLUS]        = { NULL,       binary, PREC_TERM   },
-    [TOKEN_SEMICOLON]   = { NULL,       NULL,   PREC_NONE   },
+    [TOKEN_SEMICOLON]   = { semicolon,  NULL,   PREC_NONE   },
     [TOKEN_SLASH]       = { NULL,       binary, PREC_FACTOR },
     [TOKEN_STAR]        = { NULL,       binary, PREC_FACTOR },
     [TOKEN_QMARK]       = { NULL,       NULL,   PREC_NONE   },
