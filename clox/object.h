@@ -19,6 +19,7 @@ typedef enum {
     OBJ_CLASS,
     OBJ_INSTANCE,
     OBJ_BOUND_METHOD,
+    OBJ_ARRAY,
 } ObjType;
 
 struct Obj {
@@ -83,6 +84,12 @@ typedef struct {
     ObjClosure *method;
 } ObjBoundMethod;
 
+typedef struct {
+    Obj obj;
+    Value *data;
+    size_t len;
+} ObjArray;
+
 #define OBJ_TYPE(value)     (AS_OBJ(value)->type)
 
 static inline bool obj_is_type(Value value, ObjType type)
@@ -97,16 +104,18 @@ static inline bool obj_is_type(Value value, ObjType type)
 #define IS_CLASS(value)         obj_is_type((value), OBJ_CLASS)
 #define IS_INSTANCE(value)      obj_is_type((value), OBJ_INSTANCE)
 #define IS_BOUND_METHOD(value)  obj_is_type((value), OBJ_BOUND_METHOD)
+#define IS_ARRAY(value)         obj_is_type((value), OBJ_ARRAY)
 
-#define AS_STRING(value)        ((ObjString *)   AS_OBJ(value))
-#define AS_CSTRING(value)       (((ObjString *)  AS_OBJ(value))->data)
-#define AS_FUNCTION(value)      ((ObjFunction *) AS_OBJ(value))
-#define AS_NATIVE(value)        (((ObjNative *)  AS_OBJ(value))->fun)
-#define AS_NATIVE_OBJ(value)    ((ObjNative *)   AS_OBJ(value))
-#define AS_CLOSURE(value)       ((ObjClosure *)  AS_OBJ(value))
-#define AS_CLASS(value)         ((ObjClass *)    AS_OBJ(value))
-#define AS_INSTANCE(value)      ((ObjInstance *) AS_OBJ(value))
+#define AS_STRING(value)        ((ObjString *)      AS_OBJ(value))
+#define AS_CSTRING(value)       (((ObjString *)     AS_OBJ(value))->data)
+#define AS_FUNCTION(value)      ((ObjFunction *)    AS_OBJ(value))
+#define AS_NATIVE(value)        (((ObjNative *)     AS_OBJ(value))->fun)
+#define AS_NATIVE_OBJ(value)    ((ObjNative *)      AS_OBJ(value))
+#define AS_CLOSURE(value)       ((ObjClosure *)     AS_OBJ(value))
+#define AS_CLASS(value)         ((ObjClass *)       AS_OBJ(value))
+#define AS_INSTANCE(value)      ((ObjInstance *)    AS_OBJ(value))
 #define AS_BOUND_METHOD(value)  ((ObjBoundMethod *) AS_OBJ(value))
+#define AS_ARRAY(value)         ((ObjArray *)       AS_OBJ(value))
 
 ObjString *obj_copy_string(const char *str, size_t len);
 ObjString *obj_take_string(char *data, size_t len);
@@ -117,6 +126,7 @@ ObjClosure *obj_make_closure(ObjFunction *fun);
 ObjClass *obj_make_class(ObjString *name);
 ObjInstance *obj_make_instance(ObjClass *klass);
 ObjBoundMethod *obj_make_bound_method(Value receiver, ObjClosure *method);
+ObjArray *obj_make_array(size_t len, Value *elems);
 void obj_print(Value value, bool debug);
 void obj_free(Obj *obj);
 void obj_free_arr(Obj *objects);

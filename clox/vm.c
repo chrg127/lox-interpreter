@@ -523,8 +523,28 @@ static VMResult run()
                 break;
             }
 
+            if (IS_ARRAY(array)) {
+                ObjArray *arr = AS_ARRAY(array);
+                if (arr->len < i) {
+                    runtime_error("array subscript out of bounds");
+                    return VM_RUNTIME_ERROR;
+                }
+                vm_push(arr->data[i]);
+                break;
+            }
+
             runtime_error("value is not subscriptable");
             return VM_RUNTIME_ERROR;
+        }
+        case OP_ARRAY: {
+            Value length = vm_pop();
+            if (!IS_NUM(length)) {
+                runtime_error("length must be a number value");
+                return VM_RUNTIME_ERROR;
+            }
+            ObjArray *arr = obj_make_array((size_t)AS_NUM(length), NULL);
+            vm_push(VALUE_MKOBJ(arr));
+            break;
         }
         case OP_PRINT:
             value_print(vm_pop(), false);

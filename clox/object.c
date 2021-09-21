@@ -152,6 +152,18 @@ ObjBoundMethod *obj_make_bound_method(Value receiver, ObjClosure *method)
     return bound;
 }
 
+ObjArray *obj_make_array(size_t len, Value *elems)
+{
+    ObjArray *array = ALLOCATE_OBJ(ObjArray, OBJ_ARRAY);
+    array->len = len;
+    array->data = elems != NULL ? elems
+                                : ALLOCATE(Value, len);
+    if (elems == NULL)
+        for (size_t i = 0; i < len; i++)
+            array->data[i] = VALUE_MKNIL();
+    return array;
+}
+
 void obj_print(Value value, bool debug)
 {
     switch (OBJ_TYPE(value)) {
@@ -171,6 +183,16 @@ void obj_print(Value value, bool debug)
         printf(">");
         break;
     case OBJ_BOUND_METHOD: print_function(AS_BOUND_METHOD(value)->method->fun); break;
+    case OBJ_ARRAY: {
+        ObjArray *arr = AS_ARRAY(value);
+        printf("[");
+        for (size_t i = 0; i < arr->len-1; i++) {
+            value_print(arr->data[i], debug);
+            printf(", ");
+        }
+        value_print(arr->data[arr->len-1], debug);
+        printf("]");
+    }
     }
 }
 
@@ -220,6 +242,11 @@ void obj_free(Obj *obj)
     case OBJ_BOUND_METHOD:
         FREE(ObjBoundMethod, obj);
         break;
+    case OBJ_ARRAY: {
+        ObjArray *arr = (ObjArray *)obj;
+        FREE_ARRAY(Value, arr->data, arr->len);
+        FREE(ObjArray, obj);
+    }
     }
 }
 

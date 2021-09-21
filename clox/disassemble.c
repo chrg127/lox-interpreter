@@ -127,6 +127,7 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_NOT:            return simple_instr("not", offset);
     case OP_NEGATE:         return simple_instr("neg", offset);
     case OP_SUBSCRIPT:      return simple_instr("off", offset);
+    case OP_ARRAY:          return simple_instr("dfa", offset);
     case OP_PRINT:          return simple_instr("prt", offset);
     case OP_BRANCH:         return jump_instr("bfw",  1, chunk, offset);
     case OP_BRANCH_FALSE:   return jump_instr("bfl",  1, chunk, offset);
