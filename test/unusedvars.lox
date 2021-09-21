@@ -1,0 +1,8 @@
+fun a(x)
+{
+    fun b() {}
+    class A {}
+    print 1;
+}
+
+a(3);

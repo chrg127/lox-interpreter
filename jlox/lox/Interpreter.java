@@ -6,8 +6,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.stream.Collectors;
 
-class Interpreter implements Expr.Visitor<Object>,
-                             Stmt.Visitor<Void> {
+class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     static class LocalInfo {
         int dist, index;
         LocalInfo(int dist, int index) { this.dist = dist; this.index = index; }
@@ -15,7 +14,7 @@ class Interpreter implements Expr.Visitor<Object>,
 
     private Environment env = null;
     private HashMap<String, Object> globals = new HashMap<>();
-    private final Map<Expr, LocalInfo> locals = new HashMap<>();
+    public final Map<Expr, LocalInfo> locals = new HashMap<>();
 
     public Interpreter() {
         globals.put("clock", new LoxCallable() {
@@ -78,8 +77,7 @@ class Interpreter implements Expr.Visitor<Object>,
     }
 
     private boolean isEqual(Object a, Object b) {
-        return a == null ? b == null
-                         : a.equals(b);
+        return a == null ? b == null : a.equals(b);
     }
 
     private String stringify(Object object) {
@@ -116,12 +114,8 @@ class Interpreter implements Expr.Visitor<Object>,
         }
     }
 
-    private LocalInfo lookupVariableInfo(Token name, Expr expr) {
-        return locals.get(expr);
-    }
-
     private Object lookupVariable(Token name, Expr expr) {
-        var info = lookupVariableInfo(name, expr);
+        var info = locals.get(expr);
         if (info != null)
             return env.getAt(info.dist, info.index, name);
         else {
@@ -132,6 +126,30 @@ class Interpreter implements Expr.Visitor<Object>,
         }
     }
 
+    private int declare(Token name) {
+        if (env != null)
+            return env.declare(name.lexeme);
+        else {
+            globals.put(name.lexeme, null);
+            return -1;
+        }
+    }
+
+    private void define(Token name, Object value) {
+        if (env != null)
+            env.define(name.lexeme, value);
+        else
+            globals.put(name.lexeme, value);
+    }
+
+    private void assign(Token name, int index, Object value) {
+        if (env != null)
+            env.assign(index, value);
+        else
+            globals.put(name.lexeme, value);
+    }
+
+
     @Override
     public Void visitClassStmt(Stmt.Class stmt) {
         Object superclass = null;
@@ -141,7 +159,7 @@ class Interpreter implements Expr.Visitor<Object>,
                 throw new RuntimeError(stmt.superclass.name, "superclass must be a class");
         }
 
-        int classIndex = env.declare(stmt.name.lexeme);
+        int classIndex = declare(stmt.name);
         if (stmt.superclass != null) {
             env = new Environment(env);
             env.define("super", superclass);
@@ -153,32 +171,35 @@ class Interpreter implements Expr.Visitor<Object>,
 
         var statics = stmt.statics.stream().collect(Collectors.toMap(
                     s -> s.name.lexeme,
-                    s -> new LoxFunction(s, env, false)));
+                    s -> new LoxFunction(s, env, /* ctor = */ false)));
 
         var getters = stmt.getters.stream().collect(Collectors.toMap(
                     g -> g.name.lexeme,
-                    g -> new LoxFunction(g, env, false)));
+                    g -> new LoxFunction(g, env, /* ctor = */ false)));
 
         LoxClass klass = new LoxClass(stmt.name.lexeme, (LoxClass) superclass, methods, statics, getters);
         if (superclass != null)
             env = env.enclosing;
 
-        env.assign(classIndex, klass);
+        assign(stmt.name, classIndex, klass);
         return null;
     }
 
     @Override
     public Void visitFunctionStmt(Stmt.Function stmt) {
-        LoxFunction function = new LoxFunction(stmt, env, false);
-        env.define(stmt.name.lexeme, function);
+        define(stmt.name, new LoxFunction(stmt, env, false));
         return null;
     }
 
     @Override
-    public Void visitlocalstmt(Stmt.Var stmt) {
-        int varIndex = env.declare(stmt.name.lexeme);
-        if (stmt.initializer != null)
-            env.assign(varIndex, eval(stmt.initializer));
+    public Void visitVarStmt(Stmt.Var stmt) {
+        if (env == null) {
+            globals.put(stmt.name.lexeme, stmt.initializer != null ? eval(stmt.initializer) : null);
+        } else {
+            int varIndex = env.declare(stmt.name.lexeme);
+            if (stmt.initializer != null)
+                env.assign(varIndex, eval(stmt.initializer));
+        }
         return null;
     }
 
@@ -233,8 +254,6 @@ class Interpreter implements Expr.Visitor<Object>,
         return null;
     }
 
-
-
     @Override
     public Object visitBinaryExpr(Expr.Binary expr) {
         Object left  = eval(expr.left);
@@ -268,12 +287,12 @@ class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Object visitAssignExpr(Expr.Assign expr) {
-        var info = lookupVariableInfo(expr.name, expr);
+        var info = locals.get(expr);
         Object value = eval(expr.value);
         if (info != null)
             env.assignAt(info.dist, info.index, value);
         else
-            globals.put(expr.name, value);
+            globals.put(expr.name.lexeme, value);
         return value;
     }
 
@@ -354,7 +373,7 @@ class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Object visitSuperExpr(Expr.Super expr) {
-        var info = lookupVariableInfo(expr.keyword, expr);
+        var info = locals.get(expr);
         LoxClass superclass = (LoxClass) env.getAt(info.dist, info.index, expr.keyword);
         LoxInstance obj = (LoxInstance) env.getByNameAt(info.dist - 1, "this");
         LoxFunction method = superclass.findMethod(expr.method.lexeme);

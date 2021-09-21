@@ -119,7 +119,6 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         define(stmt.name);
 
         // resolve static functions here, before any scope created for 'super' and 'this'
-        // TODO: resolve bug with global variables
         for (var s : stmt.statics)
             resolveFunction(s.params, s.body, FunctionType.STATIC);
 
@@ -294,6 +293,8 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     public Void visitThisExpr(Expr.This expr) {
         if (currClass == ClassType.NONE)
             Lox.error(expr.keyword, "can't use 'this' outside a class");
+        if (currFunc == FunctionType.STATIC)
+            Lox.error(expr.keyword, "can't use 'this' inside static method");
         resolveLocal(expr, expr.keyword);
         return null;
     }

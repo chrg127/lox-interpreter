@@ -16,6 +16,19 @@ class Environment {
     public Environment()                      { enclosing = null; }
     public Environment(Environment enclosing) { this.enclosing = enclosing; }
 
+    private Object uncheckedGet(int index) {
+        return values.get(index);
+    }
+
+    private Environment ancestor(int dist) {
+        Environment env = this;
+        for (int i = 0; i < dist; i++)
+            env = env.enclosing;
+        return env;
+    }
+
+
+
     public int declare(String name) {
         int i = values.size();
         uninitialized.add(i);
@@ -29,10 +42,6 @@ class Environment {
         values.set(index, value);
     }
 
-    private Object uncheckedGet(int index) {
-        return values.get(index);
-    }
-
     public Object get(int index, Token name) {
         if (uninitialized.contains(index))
             throw new RuntimeError(name, "uninitialized variable access");
@@ -44,15 +53,8 @@ class Environment {
         names.add(optName);
     }
 
-    private Environment ancestor(int dist) {
-        Environment env = this;
-        for (int i = 0; i < dist; i++)
-            env = env.enclosing;
-        return env;
-    }
-
-    public Object getAt(int dist, int index, Token t) {
-        return ancestor(dist).get(index, t);
+    public Object getAt(int dist, int index, Token name) {
+        return ancestor(dist).get(index, name);
     }
 
     public void assignAt(int dist, int index, Object value) {

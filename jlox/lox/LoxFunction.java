@@ -30,12 +30,16 @@ class LoxFunction implements LoxCallable {
         try {
             interpreter.execBlock(body, env);
         } catch (Return retval) {
-            if (isCtor)
+            if (isCtor) {
+                assert closure != null;
                 return closure.getByNameAt(0, "this");
+            }
             return retval.value;
         }
-        if (isCtor)
+        if (isCtor) {
+            assert closure != null;
             return closure.getByNameAt(0, "this");
+        }
         return null;
     }
 

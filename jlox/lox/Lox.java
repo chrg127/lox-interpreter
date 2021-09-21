@@ -85,10 +85,15 @@ public class Lox {
         if (hadError)
             return;
         // printAST(statements);
-        Resolver resolver = interpreter.getResolver();
+
+        Resolver resolver = new Resolver(interpreter);
         resolver.resolve(statements);
         if (hadError)
             return;
+        for (var local : interpreter.locals.entrySet()) {
+            System.out.println(local.getKey() + " = " + local.getValue().dist + ", " + local.getValue().index);
+        }
+
 
         // don't bother users at the prompt
         if (!fromPrompt)
