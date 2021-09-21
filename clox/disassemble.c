@@ -103,7 +103,6 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     switch (instr) {
     case OP_CONSTANT:       return const_instr("ldc", chunk, offset);
     case OP_CONSTANT_LONG:  return const_long_instr("ldc", chunk, offset);
-    case OP_NEGATE:         return simple_instr("neg", offset);
     case OP_NIL:            return simple_instr("ldn", offset);
     case OP_TRUE:           return simple_instr("ldt", offset);
     case OP_FALSE:          return simple_instr("ldf", offset);
@@ -126,6 +125,8 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_MUL:            return simple_instr("mul", offset);
     case OP_DIV:            return simple_instr("div", offset);
     case OP_NOT:            return simple_instr("not", offset);
+    case OP_NEGATE:         return simple_instr("neg", offset);
+    case OP_SUBSCRIPT:      return simple_instr("off", offset);
     case OP_PRINT:          return simple_instr("prt", offset);
     case OP_BRANCH:         return jump_instr("bfw",  1, chunk, offset);
     case OP_BRANCH_FALSE:   return jump_instr("bfl",  1, chunk, offset);
