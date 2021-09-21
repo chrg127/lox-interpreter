@@ -31,6 +31,7 @@ typedef enum {
     OP_DIV,
     OP_NOT,
     OP_NEGATE,
+    OP_SUBSCRIPT,
     OP_PRINT,
     OP_BRANCH,
     OP_BRANCH_FALSE,

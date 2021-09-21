@@ -242,6 +242,8 @@ Token scan_token()
     case '*': return make_token(TOKEN_STAR);
     case '?': return make_token(TOKEN_QMARK);
     case ':': return make_token(TOKEN_DCOLON);
+    case '[': return make_token(TOKEN_LEFT_SQUARE);
+    case ']': return make_token(TOKEN_RIGHT_SQUARE);
     case '!': return make_token(match('=') ? TOKEN_BANG_EQ    : TOKEN_BANG);
     case '=': return make_token(match('=') ? TOKEN_EQ_EQ      : TOKEN_EQ);
     case '<': return make_token(match('=') ? TOKEN_LESS_EQ    : TOKEN_LESS);

@@ -494,6 +494,38 @@ static VMResult run()
             }
             vm.sp[-1] = VALUE_MKNUM(-AS_NUM(vm.sp[-1]));
             break;
+        case OP_SUBSCRIPT: {
+            Value index = vm_pop();
+            if (!IS_NUM(index)) {
+                runtime_error("array subscript must be an integer");
+                return VM_RUNTIME_ERROR;
+            }
+
+            Value array = vm_pop();
+            size_t i = (size_t) AS_NUM(index);
+            if (IS_STRING(array)) {
+                ObjString *str = AS_STRING(array);
+                if (str->len < i) {
+                    runtime_error("array subscript out of bounds");
+                    return VM_RUNTIME_ERROR;
+                }
+                vm_push(VALUE_MKNUM((double)str->data[i]));
+                break;
+            }
+
+            if (IS_SSTR(array)) {
+                char *str = AS_SSTR(array);
+                if (strlen(str) < i) {
+                    runtime_error("array subscript out of bounds");
+                    return VM_RUNTIME_ERROR;
+                }
+                vm_push(VALUE_MKNUM((double)str[i]));
+                break;
+            }
+
+            runtime_error("value is not subscriptable");
+            return VM_RUNTIME_ERROR;
+        }
         case OP_PRINT:
             value_print(vm_pop(), false);
             printf("\n");
@@ -623,6 +655,7 @@ void vm_init()
     define_native("typeof", native_typeof, 1);
     define_native("has_field", native_has_field, 2);
     define_native("del_field", native_del_field, 2);
+    define_native("len", native_len, 1);
 }
 
 void vm_free()
