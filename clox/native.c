@@ -49,7 +49,7 @@ NativeResult native_has_field(int argc, Value *argv)
     return NATIVE_MKRES(VALUE_MKBOOL(res));
 }
 
-NativeResult native_del_field(int argc, Value *argv)
+NativeResult native_delete_field(int argc, Value *argv)
 {
     if (!IS_INSTANCE(argv[0])) {
         native_runtime_error("del_field", "invalid parameter: not an instance value");
