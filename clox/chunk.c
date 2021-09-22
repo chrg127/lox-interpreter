@@ -45,7 +45,7 @@ size_t chunk_add_const(Chunk *chunk, Value value)
     }
     vm_push(value);
     valuearray_write(&chunk->constants, value);
-    vm_pop(value);
+    vm_pop();
     return chunk->constants.size - 1;
 }
 

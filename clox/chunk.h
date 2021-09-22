@@ -31,9 +31,10 @@ typedef enum {
     OP_DIV,
     OP_NOT,
     OP_NEGATE,
-    OP_SUBSCRIPT,
-    OP_ARRAY,       // with length
-    // OP_ARRAY_INIT,  // with initializer
+    OP_CREATE_ARRAY,    // with length
+    OP_BUILD_ARRAY,     // with init-list
+    OP_LOAD_SUBSCRIPT,
+    OP_STORE_SUBSCRIPT,
     OP_PRINT,
     OP_BRANCH,
     OP_BRANCH_FALSE,

@@ -55,7 +55,7 @@ static size_t closure_instr(const char *name, Chunk *chunk, size_t offset)
     u8 b1 = chunk->code.data[offset++];
     u8 b2 = chunk->code.data[offset++];
     u16 constant = TOU16(b1, b2);
-    printf("%s %03d '", "clo", constant);
+    printf("%s %03d '", name, constant);
     value_print(chunk->constants.values[constant], true);
     printf("'");
 
@@ -79,6 +79,13 @@ static size_t invoke_instr(const char *name, Chunk *chunk, size_t offset)
     value_print(chunk->constants.values[constant], true);
     printf("'");
     return offset + 4;
+}
+
+static size_t array_instr(const char *name, Chunk *chunk, size_t offset)
+{
+    u16 length = TOU16(chunk->code.data[offset+1], chunk->code.data[offset+2]);
+    printf("%s len: %05d", name, length);
+    return offset + 2;
 }
 
 void disassemble(Chunk *chunk, const char *name)
@@ -126,8 +133,10 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_DIV:            return simple_instr("div", offset);
     case OP_NOT:            return simple_instr("not", offset);
     case OP_NEGATE:         return simple_instr("neg", offset);
-    case OP_SUBSCRIPT:      return simple_instr("off", offset);
-    case OP_ARRAY:          return simple_instr("dfa", offset);
+    case OP_LOAD_SUBSCRIPT: return simple_instr("ldi", offset);
+    case OP_STORE_SUBSCRIPT:return simple_instr("sti", offset);
+    case OP_CREATE_ARRAY:   return simple_instr("dfa", offset);
+    case OP_BUILD_ARRAY:    return array_instr("dfa", chunk, offset);
     case OP_PRINT:          return simple_instr("prt", offset);
     case OP_BRANCH:         return jump_instr("bfw",  1, chunk, offset);
     case OP_BRANCH_FALSE:   return jump_instr("bfl",  1, chunk, offset);

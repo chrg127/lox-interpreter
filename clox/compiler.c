@@ -21,6 +21,7 @@
 #define GLOBAL_COUNT    UINT16_COUNT
 #define CONSTANT_COUNT  UINT16_MAX
 #define JUMP_MAX        UINT16_MAX
+#define ARRAY_ELEM_MAX  UINT16_COUNT
 
 typedef enum {
     PREC_NONE,
@@ -1004,15 +1005,31 @@ static void semicolon(bool can_assign) {}
 static void subscript(bool can_assign)
 {
     expr();
-    emit_byte(OP_SUBSCRIPT);
     consume(TOKEN_RIGHT_SQUARE, "expected ']' after subscript expression");
+    if (can_assign && match(TOKEN_EQ)) {
+        assignment();
+        emit_byte(OP_STORE_SUBSCRIPT);
+    } else
+        emit_byte(OP_LOAD_SUBSCRIPT);
 }
 
 static void array(bool can_assign)
 {
     assignment();
-    consume(TOKEN_RIGHT_SQUARE, "expected ']' after array length expression");
-    emit_byte(OP_ARRAY);
+    if (match(TOKEN_COMMA)) {
+        int count = 1;
+        do {
+            assignment();
+            if (count == ARRAY_ELEM_MAX)
+                error("too many elements in array initializer");
+            count++;
+        } while (match(TOKEN_COMMA));
+        consume(TOKEN_RIGHT_SQUARE, "expected ']' after array length expression");
+        emit_u16(OP_BUILD_ARRAY, count);
+    } else {
+        consume(TOKEN_RIGHT_SQUARE, "expected ']' after array length expression");
+        emit_byte(OP_CREATE_ARRAY);
+    }
 }
 
 static ParseRule rules[] = {

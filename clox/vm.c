@@ -494,18 +494,36 @@ static VMResult run()
             }
             vm.sp[-1] = VALUE_MKNUM(-AS_NUM(vm.sp[-1]));
             break;
-        case OP_SUBSCRIPT: {
-            Value index = vm_pop();
-            if (!IS_NUM(index)) {
+        case OP_CREATE_ARRAY: {
+            Value length = vm_pop();
+            if (!IS_NUM(length)) {
+                runtime_error("length must be a number value");
+                return VM_RUNTIME_ERROR;
+            }
+            ObjArray *arr = obj_make_array((size_t)AS_NUM(length), NULL);
+            vm_push(VALUE_MKOBJ(arr));
+            break;
+        }
+        case OP_BUILD_ARRAY: {
+            u16 count = READ_SHORT();
+            Value *values = ALLOCATE(Value, count);
+            for (int i = count-1; i >= 0; i--)
+                values[i] = vm_pop();
+            ObjArray *arr = obj_make_array(count, values);
+            vm_push(VALUE_MKOBJ(arr));
+            break;
+        }
+        case OP_LOAD_SUBSCRIPT: {
+            if (!IS_NUM(peek(0))) {
                 runtime_error("array subscript must be an integer");
                 return VM_RUNTIME_ERROR;
             }
-
+            size_t i = (size_t) AS_NUM(vm_pop());
             Value array = vm_pop();
-            size_t i = (size_t) AS_NUM(index);
+
             if (IS_STRING(array)) {
                 ObjString *str = AS_STRING(array);
-                if (str->len < i) {
+                if (i >= str->len) {
                     runtime_error("array subscript out of bounds");
                     return VM_RUNTIME_ERROR;
                 }
@@ -515,7 +533,7 @@ static VMResult run()
 
             if (IS_SSTR(array)) {
                 char *str = AS_SSTR(array);
-                if (strlen(str) < i) {
+                if (i >= strlen(str)) {
                     runtime_error("array subscript out of bounds");
                     return VM_RUNTIME_ERROR;
                 }
@@ -525,7 +543,7 @@ static VMResult run()
 
             if (IS_ARRAY(array)) {
                 ObjArray *arr = AS_ARRAY(array);
-                if (arr->len < i) {
+                if (i >= arr->len) {
                     runtime_error("array subscript out of bounds");
                     return VM_RUNTIME_ERROR;
                 }
@@ -536,14 +554,24 @@ static VMResult run()
             runtime_error("value is not subscriptable");
             return VM_RUNTIME_ERROR;
         }
-        case OP_ARRAY: {
-            Value length = vm_pop();
-            if (!IS_NUM(length)) {
-                runtime_error("length must be a number value");
+        case OP_STORE_SUBSCRIPT: {
+            if (!IS_NUM(peek(1))) {
+                runtime_error("array subscript must be an integer");
                 return VM_RUNTIME_ERROR;
             }
-            ObjArray *arr = obj_make_array((size_t)AS_NUM(length), NULL);
-            vm_push(VALUE_MKOBJ(arr));
+            if (!IS_ARRAY(peek(2))) {
+                runtime_error("value is not subscriptable");
+                return VM_RUNTIME_ERROR;
+            }
+            Value new     = vm_pop();
+            size_t i      = (size_t) AS_NUM(vm_pop());
+            ObjArray *arr = AS_ARRAY(vm_pop());
+            if (i >= arr->len) {
+                runtime_error("array subscript out of bounds");
+                return VM_RUNTIME_ERROR;
+            }
+            arr->data[i] = new;
+            vm_push(new);
             break;
         }
         case OP_PRINT:
@@ -676,6 +704,8 @@ void vm_init()
     define_native("has_field", native_has_field, 2);
     define_native("delete_field", native_delete_field, 2);
     define_native("len", native_len, 1);
+    define_native("strtoarr", native_strtoarr, 1);
+    define_native("arrtostr", native_arrtostr, 1);
 }
 
 void vm_free()
