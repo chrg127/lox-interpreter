@@ -78,6 +78,11 @@ static void mark_black(Obj *obj)
         gc_mark_obj((Obj *)bound->method);
         break;
     }
+    case OBJ_ARRAY: {
+        ObjArray *arr = (ObjArray *)obj;
+        for (size_t i = 0; i < arr->len; i++)
+            gc_mark_value(arr->data[i]);
+    }
     }
 }
 

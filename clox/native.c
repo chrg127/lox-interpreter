@@ -68,8 +68,9 @@ NativeResult native_delete_field(int argc, Value *argv)
 NativeResult native_len(int argc, Value *argv)
 {
     Value array = argv[0];
-    if (IS_STRING(array)) return NATIVE_MKRES(VALUE_MKNUM((double)(AS_STRING(array)->len)));
+    if (IS_STRING(array)) return NATIVE_MKRES(VALUE_MKNUM((double)AS_STRING(array)->len));
     if (IS_SSTR(array))   return NATIVE_MKRES(VALUE_MKNUM((double)strlen(AS_SSTR(array))));
+    if (IS_ARRAY(array))  return NATIVE_MKRES(VALUE_MKNUM((double)AS_ARRAY(array)->len));
     native_runtime_error("len", "invalid parameter: not an array or string value");
     return NATIVE_MKERR();
 }

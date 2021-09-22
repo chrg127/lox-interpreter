@@ -1008,12 +1008,19 @@ static void subscript(bool can_assign)
     consume(TOKEN_RIGHT_SQUARE, "expected ']' after subscript expression");
 }
 
+static void array(bool can_assign)
+{
+    assignment();
+    consume(TOKEN_RIGHT_SQUARE, "expected ']' after array length expression");
+    emit_byte(OP_ARRAY);
+}
+
 static ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]  = { grouping,   call,       PREC_CALL   },
     [TOKEN_RIGHT_PAREN] = { NULL,       NULL,       PREC_NONE   },
     [TOKEN_LEFT_BRACE]  = { NULL,       NULL,       PREC_NONE   },
     [TOKEN_RIGHT_BRACE] = { NULL,       NULL,       PREC_NONE   },
-    [TOKEN_LEFT_SQUARE] = { NULL,       subscript,  PREC_CALL   },
+    [TOKEN_LEFT_SQUARE] = { array,      subscript,  PREC_CALL   },
     [TOKEN_RIGHT_SQUARE]= { NULL,       NULL,       PREC_NONE   },
     [TOKEN_COMMA]       = { NULL,       comma,      PREC_COMMA  },
     [TOKEN_DOT]         = { NULL,       dot,        PREC_CALL   },

@@ -32,6 +32,8 @@ typedef enum {
     OP_NOT,
     OP_NEGATE,
     OP_SUBSCRIPT,
+    OP_ARRAY,       // with length
+    // OP_ARRAY_INIT,  // with initializer
     OP_PRINT,
     OP_BRANCH,
     OP_BRANCH_FALSE,
