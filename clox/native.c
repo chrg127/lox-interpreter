@@ -25,18 +25,6 @@ NativeResult native_sqrt(int argc, Value *argv)
 NativeResult native_tostr(int argc, Value *argv)
 {
     Value arg = argv[0];
-    // if (IS_INSTANCE(arg)) {
-    //     ObjClass *klass = AS_INSTANCE(arg)->klass;
-    //     Value method;
-    //     ObjString *name = obj_copy_string("to_string", 9);
-    //     if (table_lookup(&klass->methods, name, &method)) {
-    //         Value retval;
-    //         vm_push(arg);
-    //         if (!vm_invoke(name, 0, &retval))
-    //             return NATIVE_MKERR();
-    //         return NATIVE_MKRES(retval);
-    //     }
-    // }
     return NATIVE_MKRES(value_tostring(arg));
 }
 
@@ -61,7 +49,7 @@ NativeResult native_has_field(int argc, Value *argv)
     return NATIVE_MKRES(VALUE_MKBOOL(res));
 }
 
-NativeResult native_del_field(int argc, Value *argv)
+NativeResult native_delete_field(int argc, Value *argv)
 {
     if (!IS_INSTANCE(argv[0])) {
         native_runtime_error("del_field", "invalid parameter: not an instance value");
@@ -75,4 +63,13 @@ NativeResult native_del_field(int argc, Value *argv)
     ObjString *name = AS_STRING(argv[1]);
     table_delete(&inst->fields, name);
     return NATIVE_MKRES(VALUE_MKNIL());
+}
+
+NativeResult native_len(int argc, Value *argv)
+{
+    Value array = argv[0];
+    if (IS_STRING(array)) return NATIVE_MKRES(VALUE_MKNUM((double)(AS_STRING(array)->len)));
+    if (IS_SSTR(array))   return NATIVE_MKRES(VALUE_MKNUM((double)strlen(AS_SSTR(array))));
+    native_runtime_error("len", "invalid parameter: not an array or string value");
+    return NATIVE_MKERR();
 }
