@@ -133,6 +133,7 @@ ObjClass *obj_make_class(ObjString *name)
     klass->name = name;
     klass->ctor = VALUE_MKNIL();
     table_init(&klass->methods);
+    table_init(&klass->statics);
     return klass;
 }
 

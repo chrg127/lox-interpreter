@@ -48,6 +48,7 @@ typedef enum {
     OP_CLASS,
     OP_METHOD,
     OP_STATIC,
+    OP_OPERATOR,
     OP_INHERIT,
 } Opcode;
 

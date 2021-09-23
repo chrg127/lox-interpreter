@@ -539,16 +539,42 @@ static void named_var(Token name, bool can_assign)
         emit_u16(getop, arg);
 }
 
+static u16 property_name(Token *out, const char *msg)
+{
+    if (match(TOKEN_OPERATOR)) {
+        advance();
+        switch (parser.prev.type) {
+        case TOKEN_PLUS:    *out = synthetic_token("operator+"); return make_ident_constant(out);
+        case TOKEN_MINUS:   *out = synthetic_token("operator-"); return make_ident_constant(out);
+        case TOKEN_STAR:    *out = synthetic_token("operator*"); return make_ident_constant(out);
+        case TOKEN_SLASH:   *out = synthetic_token("operator/"); return make_ident_constant(out);
+        case TOKEN_GREATER: *out = synthetic_token("operator>"); return make_ident_constant(out);
+        case TOKEN_LESS:    *out = synthetic_token("operator<"); return make_ident_constant(out);
+        case TOKEN_EQ_EQ:   *out = synthetic_token("operator=="); return make_ident_constant(out);
+        case TOKEN_BANG:    *out = synthetic_token("operator!"); return make_ident_constant(out);
+        case TOKEN_LEFT_SQUARE:
+            consume(TOKEN_RIGHT_SQUARE, "unmatched '[' in operator method");
+            *out = synthetic_token(match(TOKEN_EQ) ? "operator[]=" : "operator[]");
+            return make_ident_constant(out);
+        default:
+            error("not a supported operator for overloading");
+            return 0;
+        }
+    }
+    consume(TOKEN_IDENT, msg);
+    return make_ident_constant(&parser.prev);
+}
+
 static void method()
 {
-    bool is_static = match(TOKEN_STATIC);
-    consume(TOKEN_IDENT, "expected method name");
-    u16 constant = make_ident_constant(&parser.prev);
+    bool is_static = match(TOKEN_STATIC) || check(TOKEN_OPERATOR);
+    Token name;
+    u16 constant = property_name(&name, "expected method name");
     FunctionType type = is_static ? TYPE_STATIC : TYPE_METHOD;
     if (!is_static && parser.prev.len == 4 && memcmp(parser.prev.start, "init", 4) == 0)
         type = TYPE_CTOR;
-    function(type, &parser.prev);
-    emit_u16(!is_static ? OP_METHOD : OP_STATIC, constant);
+    function(type, &name);
+    emit_u16(is_static ? OP_STATIC : OP_METHOD, constant);
 }
 
 static void class_decl()
@@ -906,8 +932,8 @@ static void call(bool can_assign)
 
 static void dot(bool can_assign)
 {
-    consume(TOKEN_IDENT, "expected property name after '.'");
-    u16 name = make_ident_constant(&parser.prev);
+    Token garbage;
+    u16 name = property_name(&garbage, "expected property name after '.'");
     if (can_assign && match(TOKEN_EQ)) {
         assignment();
         emit_u16(OP_SET_PROPERTY, name);

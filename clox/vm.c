@@ -18,6 +18,17 @@ VM vm;
 void vm_push(Value value) { *vm.sp++ = value; }
 Value vm_pop()            { return *--vm.sp;  }
 
+static void push_at(int n, Value value)
+{
+    if (n == 0) {
+        vm_push(value);
+        return;
+    }
+    Value tmp = vm_pop();
+    push_at(n-1, value);
+    vm_push(tmp);
+}
+
 static void print_stack()
 {
     printf("stack: ");
@@ -296,6 +307,20 @@ static bool bind_method_from_table(Table *methods, ObjString *name)
 static bool bind_method(ObjClass *klass, ObjString *name) { return bind_method_from_table(&klass->methods, name); }
 static bool bind_static(ObjClass *klass, ObjString *name) { return bind_method_from_table(&klass->statics, name); }
 
+static bool resolve_overload(const char *method_name, int argc)
+{
+    ObjInstance *inst = AS_INSTANCE(peek(argc-1));
+    Value method;
+    ObjString *name = obj_copy_string(method_name, strlen(method_name));
+    if (!table_lookup(&inst->klass->statics, name, &method)) {
+        runtime_error("no '%s' defined for instance of class '%s'", method_name, inst->klass->name->data);
+        return false;
+    }
+    push_at(argc, VALUE_MKOBJ(inst->klass));
+    call_generic(method, 2);
+    return true;
+}
+
 static void define_native(const char *name, NativeFn fun, u8 arity)
 {
     vm_push(VALUE_MKOBJ(obj_copy_string(name, strlen(name))));
@@ -316,12 +341,24 @@ static VMResult run()
 #define READ_CONSTANT_LONG() (frame->fun->chunk.constants.values[READ_SHORT()])
 #define READ_STRING() AS_STRING(READ_CONSTANT_LONG())
 
-#define BINARY_OP(value_type, op)                       \
+#define OPERATOR_OVERLOAD(op, argc)                     \
+    if (IS_INSTANCE(peek(argc-1))) {                    \
+        frame->ip = vm.ip;                              \
+        if (!resolve_overload("operator" #op, argc)) \
+            return VM_RUNTIME_ERROR;                    \
+        frame = &vm.frames[vm.frame_count-1];           \
+        vm.ip = frame->ip;                              \
+        break;                                          \
+    }
+
+#define BINARY_OP(value_type, op, argc)                 \
     do {                                                \
-        if (!IS_NUM(peek(0)) || !IS_NUM(peek(1))) {     \
+        if (!IS_INSTANCE(peek(1))                       \
+        && (!IS_NUM(peek(0)) || !IS_NUM(peek(1)))) {    \
             runtime_error("operands must be numbers");  \
             return VM_RUNTIME_ERROR;                    \
         }                                               \
+        OPERATOR_OVERLOAD(op, argc)                     \
         double b = AS_NUM(vm_pop());                    \
         double a = AS_NUM(vm_pop());                    \
         vm_push(value_type(a op b));                    \
@@ -449,14 +486,16 @@ static VMResult run()
             break;
         }
         case OP_EQ: {
+            OPERATOR_OVERLOAD(==, 2)
             Value b = vm_pop();
             Value a = vm_pop();
             vm_push(VALUE_MKBOOL(value_equal(a, b)));
             break;
         }
-        case OP_GREATER: BINARY_OP(VALUE_MKBOOL, >); break;
-        case OP_LESS:    BINARY_OP(VALUE_MKBOOL, <); break;
+        case OP_GREATER: BINARY_OP(VALUE_MKBOOL, >, 2); break;
+        case OP_LESS:    BINARY_OP(VALUE_MKBOOL, <, 2); break;
         case OP_ADD:
+            OPERATOR_OVERLOAD(+, 2)
             if ((IS_SSTR(peek(0)) || IS_STRING(peek(0))) && (IS_SSTR(peek(1)) || IS_STRING(peek(1))))
                 concat();
             else if (IS_NUM(peek(0)) && IS_NUM(peek(1))) {
@@ -468,8 +507,8 @@ static VMResult run()
                 return VM_RUNTIME_ERROR;
             }
             break;
-        case OP_SUB:    BINARY_OP(VALUE_MKNUM, -); break;
-        case OP_MUL:    BINARY_OP(VALUE_MKNUM, *); break;
+        case OP_SUB:    BINARY_OP(VALUE_MKNUM, -, 2); break;
+        case OP_MUL:    BINARY_OP(VALUE_MKNUM, *, 2); break;
         case OP_DIV:
             if (!IS_NUM(peek(0)) || !IS_NUM(peek(1))) {
                 runtime_error("operands must be numbers");
@@ -484,6 +523,7 @@ static VMResult run()
             vm_push(VALUE_MKNUM(a / b));
             break;
         case OP_NOT: {
+            OPERATOR_OVERLOAD(!, 1)
             vm_push(VALUE_MKBOOL(is_falsey(vm_pop())));
             break;
         }
@@ -514,6 +554,8 @@ static VMResult run()
             break;
         }
         case OP_LOAD_SUBSCRIPT: {
+            OPERATOR_OVERLOAD([], 2)
+
             if (!IS_NUM(peek(0))) {
                 runtime_error("array subscript must be an integer");
                 return VM_RUNTIME_ERROR;
@@ -555,6 +597,8 @@ static VMResult run()
             return VM_RUNTIME_ERROR;
         }
         case OP_STORE_SUBSCRIPT: {
+            OPERATOR_OVERLOAD([]=, 3)
+
             if (!IS_NUM(peek(1))) {
                 runtime_error("array subscript must be an integer");
                 return VM_RUNTIME_ERROR;
@@ -655,6 +699,18 @@ static VMResult run()
         case OP_CLASS:
             vm_push(VALUE_MKOBJ(obj_make_class(READ_STRING())));
             break;
+        case OP_METHOD:
+            if (!define_method(READ_STRING()))
+                return VM_RUNTIME_ERROR;
+            break;
+        case OP_STATIC:
+            if (!define_static_method(READ_STRING()))
+                return VM_RUNTIME_ERROR;
+            break;
+        case OP_OPERATOR:
+            if (!define_static_method(READ_STRING()))
+                return VM_RUNTIME_ERROR;
+            break;
         case OP_INHERIT: {
             Value superclass = peek(1);
             if (!IS_CLASS(superclass)) {
@@ -665,14 +721,6 @@ static VMResult run()
             table_add_all(&AS_CLASS(superclass)->methods, &subclass->methods);
             break;
         }
-        case OP_METHOD:
-            if (!define_method(READ_STRING()))
-                return VM_RUNTIME_ERROR;
-            break;
-        case OP_STATIC:
-            if (!define_static_method(READ_STRING()))
-                return VM_RUNTIME_ERROR;
-            break;
         default:
             runtime_error("unknown opcode: %d", instr);
             return VM_RUNTIME_ERROR;
@@ -684,6 +732,7 @@ static VMResult run()
 #undef READ_CONSTANT
 #undef READ_STRING
 #undef BINARY_OP
+#undef OPERATOR_OVERLOAD
 }
 
 void vm_init()
