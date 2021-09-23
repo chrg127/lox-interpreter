@@ -144,7 +144,7 @@ ObjInstance *obj_make_instance(ObjClass *klass)
     return inst;
 }
 
-ObjBoundMethod *obj_make_bound_method(Value receiver, ObjClosure *method)
+ObjBoundMethod *obj_make_bound_method(Value receiver, Value method)
 {
     ObjBoundMethod *bound = ALLOCATE_OBJ(ObjBoundMethod, OBJ_BOUND_METHOD);
     bound->receiver = receiver;
@@ -182,7 +182,13 @@ void obj_print(Value value, bool debug)
         obj_print(VALUE_MKOBJ(AS_INSTANCE(value)->klass->name), false);
         printf(">");
         break;
-    case OBJ_BOUND_METHOD: print_function(AS_BOUND_METHOD(value)->method->fun); break;
+    case OBJ_BOUND_METHOD:
+        printf("<bound method of ");
+        value_print(AS_BOUND_METHOD(value)->receiver, debug);
+        printf(", ");
+        value_print(AS_BOUND_METHOD(value)->method, debug);
+        printf(">");
+        break;
     case OBJ_ARRAY: {
         ObjArray *arr = AS_ARRAY(value);
         printf("[");

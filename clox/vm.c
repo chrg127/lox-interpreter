@@ -173,7 +173,7 @@ static bool call_value(Value callee, u8 argc)
         case OBJ_BOUND_METHOD: {
             ObjBoundMethod *bound = AS_BOUND_METHOD(callee);
             vm.sp[-argc-1] = bound->receiver;
-            return call_generic(VALUE_MKOBJ(bound->method), argc);
+            return call_generic(bound->method, argc);
         }
         }
         default:
@@ -287,7 +287,7 @@ static bool bind_method_from_table(Table *methods, ObjString *name)
     Value method;
     if (!table_lookup(methods, name, &method))
         return false;
-    ObjBoundMethod *bound = obj_make_bound_method(peek(0), AS_CLOSURE(method));
+    ObjBoundMethod *bound = obj_make_bound_method(peek(0), method);
     vm_pop();
     vm_push(VALUE_MKOBJ(bound));
     return true;

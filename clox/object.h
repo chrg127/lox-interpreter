@@ -81,7 +81,7 @@ typedef struct {
 typedef struct {
     Obj obj;
     Value receiver;
-    ObjClosure *method;
+    Value method;
 } ObjBoundMethod;
 
 typedef struct {
@@ -125,7 +125,7 @@ ObjUpvalue *obj_make_upvalue(Value *slot);
 ObjClosure *obj_make_closure(ObjFunction *fun);
 ObjClass *obj_make_class(ObjString *name);
 ObjInstance *obj_make_instance(ObjClass *klass);
-ObjBoundMethod *obj_make_bound_method(Value receiver, ObjClosure *method);
+ObjBoundMethod *obj_make_bound_method(Value receiver, Value method);
 ObjArray *obj_make_array(size_t len, Value *elems);
 void obj_print(Value value, bool debug);
 void obj_free(Obj *obj);

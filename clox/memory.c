@@ -75,7 +75,7 @@ static void mark_black(Obj *obj)
     case OBJ_BOUND_METHOD: {
         ObjBoundMethod *bound = (ObjBoundMethod *)obj;
         gc_mark_value(bound->receiver);
-        gc_mark_obj((Obj *)bound->method);
+        gc_mark_value(bound->method);
         break;
     }
     case OBJ_ARRAY: {
