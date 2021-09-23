@@ -317,7 +317,7 @@ static bool resolve_overload(const char *method_name, int argc)
         return false;
     }
     push_at(argc, VALUE_MKOBJ(inst->klass));
-    call_generic(method, 2);
+    call_generic(method, argc);
     return true;
 }
 

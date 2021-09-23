@@ -562,7 +562,8 @@ static u16 property_name(Token *out, const char *msg)
         }
     }
     consume(TOKEN_IDENT, msg);
-    return make_ident_constant(&parser.prev);
+    *out = parser.prev;
+    return make_ident_constant(out);
 }
 
 static void method()

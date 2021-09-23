@@ -1,0 +1,32 @@
+class Vec {
+    init(x, y)
+    {
+        this.x = x;
+        this.y = y;
+    }
+
+    operator+(v1, v2) { return Vec(v1.x + v2.x, v1.y + v2.y); }
+    operator-(v1, v2) { return Vec(v1.x - v2.x, v1.y - v2.y); }
+    operator*(v1, v2) { return Vec(v1.x * v2.x, v1.y * v2.y); }
+    operator/(v1, v2) { return Vec(v1.x / v2.x, v1.y / v2.y); }
+    operator==(v1, v2) { return v1.x == v2.x and v1.y == v2.y; }
+    operator[](v, i)
+    {
+        if (i == 0) return v.x;
+        if (i == 1) return v.y;
+        return nil;
+    }
+    operator[]=(v, i, n)
+    {
+        if (i == 0) v.x = n;
+        if (i == 1) v.y = n;
+    }
+}
+
+var v1 = Vec(3, 4);
+var v2 = Vec(5, 6);
+var v3 = Vec(8, 10);
+print v3 == v1 + v2;
+print v1[1];
+v1[0] = 6;
+print v1[0];
