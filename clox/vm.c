@@ -781,16 +781,6 @@ VMResult vm_interpret(const char *src, const char *filename)
     return run();
 }
 
-bool vm_call(ObjString *name, u8 argc, Value *out)
-{
-    return false;
-}
-
-bool vm_invoke(ObjString *name, u8 argc, Value *out)
-{
-    return false;
-}
-
 VECTOR_DEFINE_INIT(GrayStack, Obj *, graystack, stack)
 
 void graystack_write(GrayStack *arr, Obj *obj)
