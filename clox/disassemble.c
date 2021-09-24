@@ -150,7 +150,6 @@ size_t disassemble_opcode(Chunk *chunk, size_t offset)
     case OP_CLASS:          return const_long_instr("dfc", chunk, offset);
     case OP_METHOD:         return const_long_instr("dfm", chunk, offset);
     case OP_STATIC:         return const_long_instr("dfs", chunk, offset);
-    case OP_OPERATOR:       return const_instr("dfo", chunk, offset);
     case OP_INHERIT:        return simple_instr("inh", offset);
     default:
         printf("[unknown] [%d]", instr);

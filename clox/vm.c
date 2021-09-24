@@ -707,10 +707,6 @@ static VMResult run()
             if (!define_static_method(READ_STRING()))
                 return VM_RUNTIME_ERROR;
             break;
-        case OP_OPERATOR:
-            if (!define_static_method(READ_STRING()))
-                return VM_RUNTIME_ERROR;
-            break;
         case OP_INHERIT: {
             Value superclass = peek(1);
             if (!IS_CLASS(superclass)) {
