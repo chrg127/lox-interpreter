@@ -1,6 +1,8 @@
 #ifndef SCANNER_H_INCLUDED
 #define SCANNER_H_INCLUDED
 
+#include <stddef.h>
+
 typedef enum {
   // single-character tokens.
   TOKEN_LEFT_PAREN, TOKEN_RIGHT_PAREN,
@@ -19,9 +21,9 @@ typedef enum {
 
   // keywords.
   TOKEN_AND, TOKEN_BREAK, TOKEN_CLASS, TOKEN_CASE, TOKEN_CONST, TOKEN_CONTINUE,
-  TOKEN_DEFAULT, TOKEN_ELSE, TOKEN_FALSE, TOKEN_FOR, TOKEN_FUN, TOKEN_IF, TOKEN_LAMBDA,
-  TOKEN_NIL, TOKEN_OPERATOR, TOKEN_OR, TOKEN_PRINT, TOKEN_RETURN, TOKEN_STATIC,
-  TOKEN_SUPER, TOKEN_SWITCH, TOKEN_THIS, TOKEN_TRUE, TOKEN_VAR, TOKEN_WHILE,
+  TOKEN_DEFAULT, TOKEN_ELSE, TOKEN_FALSE, TOKEN_FOR, TOKEN_FUN, TOKEN_IF, TOKEN_INCLUDE,
+  TOKEN_LAMBDA, TOKEN_NIL, TOKEN_OPERATOR, TOKEN_OR, TOKEN_PRINT, TOKEN_RETURN,
+  TOKEN_STATIC, TOKEN_SUPER, TOKEN_SWITCH, TOKEN_THIS, TOKEN_TRUE, TOKEN_VAR, TOKEN_WHILE,
 
   TOKEN_ERROR, TOKEN_EOF
 } TokenType;
@@ -33,7 +35,15 @@ typedef struct {
     int line;
 } Token;
 
-void scanner_init(const char *src);
+typedef struct Scanner {
+    const char *start;
+    const char *curr;
+    size_t line;
+    struct Scanner *enclosing;
+} Scanner;
+
+void scanner_init(Scanner *scanner, const char *src);
+void scanner_end();
 Token scan_token();
 
 #endif

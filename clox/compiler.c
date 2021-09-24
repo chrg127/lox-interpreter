@@ -11,6 +11,7 @@
 #include "memory.h"
 #include "debug.h"
 #include "list.h"
+#include "util.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "disassemble.h"
@@ -815,6 +816,34 @@ static void expr_stmt()
     }
 }
 
+static void compile_continue(const char *src, const char *filename)
+{
+    Scanner scanner;
+    scanner_init(&scanner, src);
+    const char *old_file = parser.file;
+    parser.file = filename;
+
+    advance();
+    while (!match(TOKEN_EOF))
+        decl();
+
+    scanner_end();
+    parser.file = old_file;
+}
+
+static void include_stmt()
+{
+    consume(TOKEN_STRING, "expected \"FILENAME\" after 'include' keyword");
+    Token *name = &parser.prev;
+    char *file = malloc(name->len-1);
+    memcpy(file, name->start+1, name->len-2);
+    file[name->len-2] = '\0';
+
+    consume(TOKEN_SEMICOLON, "expected semicolon after \"FILENAME\"");
+    const char *src  = read_file(file);
+    compile_continue(src, file);
+}
+
 static void stmt()
 {
          if (match(TOKEN_PRINT))    print_stmt();
@@ -825,6 +854,7 @@ static void stmt()
     else if (match(TOKEN_CONTINUE)) continue_stmt();
     else if (match(TOKEN_BREAK))    break_stmt();
     else if (match(TOKEN_SWITCH))   switch_stmt();
+    else if (match(TOKEN_INCLUDE)) include_stmt();
     else if (match(TOKEN_LEFT_BRACE)) {
         begin_scope();
         block();
@@ -1118,7 +1148,8 @@ static ParseRule *get_rule(TokenType type)
 
 ObjFunction *compile(const char *src, const char *filename)
 {
-    scanner_init(src);
+    Scanner scanner;
+    scanner_init(&scanner, src);
     Compiler compiler;
     compiler_init(&compiler, TYPE_SCRIPT, /* token = */ NULL);
     parser.had_error  = false;
@@ -1129,6 +1160,7 @@ ObjFunction *compile(const char *src, const char *filename)
     while (!match(TOKEN_EOF))
         decl();
 
+    scanner_end();
     ObjFunction *fun = compiler_end();
     compiler_free(&compiler);
     return parser.had_error ? NULL : fun;
