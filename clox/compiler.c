@@ -320,15 +320,8 @@ static void end_scope()
     }
 }
 
-static u16 make_ident_constant(Token *name)
-{
-    return make_constant(VALUE_MKOBJ(token_to_string(name)));
-}
-
-static bool ident_equal(Token *a, Token *b)
-{
-    return a->len == b->len && memcmp(a->start, b->start, a->len) == 0;
-}
+static u16 make_ident_constant(Token *name) { return make_constant(VALUE_MKOBJ(token_to_string(name))); }
+static bool ident_equal(Token *a, Token *b) { return a->len == b->len && memcmp(a->start, b->start, a->len) == 0; }
 
 static void add_local(Token name, bool is_const)
 {
@@ -457,6 +450,7 @@ static void function(FunctionType type, Token *name)
     Compiler compiler;
     compiler_init(&compiler, type, name);
     begin_scope();
+    bool is_variadic = false;
 
     consume(TOKEN_LEFT_PAREN, "expected '(' after function name");
     if (!check(TOKEN_RIGHT_PAREN)) {
@@ -464,8 +458,13 @@ static void function(FunctionType type, Token *name)
             curr->fun->arity++;
             if (curr->fun->arity > 255)
                 error_curr("can't have more than 255 parameters");
-            u16 constant = parse_var(false, "expected parameter name");
+            u16 constant = parse_var(false, "");
             define_var(constant);
+            if (match(TOKEN_3DOTS)) {
+                is_variadic = true;
+                emit_two(OP_STACK_ARRAY, curr->fun->arity);
+                break;
+            }
         } while (match(TOKEN_COMMA));
     }
     consume(TOKEN_RIGHT_PAREN, "expected ')' after function parameters");
@@ -481,15 +480,14 @@ static void function(FunctionType type, Token *name)
         error("expected '{' or '=' after argument list");
 
     ObjFunction *fun = compiler_end();
-
-    if (fun->upvalue_count == 0) {
+    fun->is_variadic = is_variadic;
+    if (fun->upvalue_count == 0)
         emit_constant(VALUE_MKOBJ(fun));
-        return;
+    else {
+        emit_u16(OP_CLOSURE, make_constant(VALUE_MKOBJ(fun)));
+        for (int i = 0; i < fun->upvalue_count; i++)
+            emit_u16((u8)compiler.upvalues[i].is_local, compiler.upvalues[i].index);
     }
-
-    emit_u16(OP_CLOSURE, make_constant(VALUE_MKOBJ(fun)));
-    for (int i = 0; i < fun->upvalue_count; i++)
-        emit_u16((u8)compiler.upvalues[i].is_local, compiler.upvalues[i].index);
 
     compiler_free(&compiler);
 }

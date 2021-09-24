@@ -18,15 +18,8 @@ static char advance()
     return scanner->curr[-1];
 }
 
-static char peek()
-{
-    return *scanner->curr;
-}
-
-static char peek_next()
-{
-    return at_end() ? '\0' : scanner->curr[1];
-}
+static char peek()      { return *scanner->curr; }
+static char peek_next() { return at_end() ? '\0' : scanner->curr[1]; }
 
 static bool match(char expected)
 {
@@ -37,6 +30,7 @@ static bool match(char expected)
     scanner->curr++;
     return true;
 }
+
 static Token make_token(TokenType type)
 {
     Token token = {
@@ -246,6 +240,7 @@ Token scan_token()
         return ident();
     if (is_digit(c))
         return number();
+
     switch (c) {
     case '(': return make_token(TOKEN_LEFT_PAREN);
     case ')': return make_token(TOKEN_RIGHT_PAREN);
@@ -253,7 +248,6 @@ Token scan_token()
     case '}': return make_token(TOKEN_RIGHT_BRACE);
     case ';': return make_token(TOKEN_SEMICOLON);
     case ',': return make_token(TOKEN_COMMA);
-    case '.': return make_token(TOKEN_DOT);
     case '-': return make_token(TOKEN_MINUS);
     case '+': return make_token(TOKEN_PLUS);
     case '/': return make_token(TOKEN_SLASH);
@@ -266,6 +260,12 @@ Token scan_token()
     case '=': return make_token(match('=') ? TOKEN_EQ_EQ      : TOKEN_EQ);
     case '<': return make_token(match('=') ? TOKEN_LESS_EQ    : TOKEN_LESS);
     case '>': return make_token(match('=') ? TOKEN_GREATER_EQ : TOKEN_GREATER);
+    case '.':
+        if (peek() == '.' && peek_next() == '.') {
+            advance(); advance();
+            return make_token(TOKEN_3DOTS);
+        }
+        return make_token(TOKEN_DOT);
     case '"': return string();
     }
     return error_token("unexpected character");

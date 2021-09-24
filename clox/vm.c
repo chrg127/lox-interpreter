@@ -116,35 +116,23 @@ void runtime_error(const char *fmt, ...)
     va_end(args);
 }
 
-static u8 get_arity(Value funobj)
-{
-    return IS_CLOSURE(funobj) ? AS_CLOSURE(funobj)->fun->arity
-                              : AS_FUNCTION(funobj)->arity;
-}
-
 static bool call_generic(Value funobj, u8 argc)
 {
-    u8 arity = get_arity(funobj);
-    if (argc != arity) {
-        runtime_error("expected %d arguments, got %d", arity, argc);
+    ObjFunction *fun = IS_CLOSURE(funobj) ? AS_CLOSURE(funobj)->fun : AS_FUNCTION(funobj);
+    if ((fun->is_variadic && argc < fun->arity) || (!fun->is_variadic && argc != fun->arity)) {
+        runtime_error("expected %s %d arguments, got %d", fun->is_variadic ? "at least" : "", fun->arity, argc);
         return false;
     }
+
     if (vm.frame_count == FRAMES_MAX) {
         runtime_error("stack overflow");
         return false;
     }
+
     CallFrame *frame = &vm.frames[vm.frame_count++];
-    if (IS_CLOSURE(funobj)) {
-        ObjClosure *closure = AS_CLOSURE(funobj);
-        frame->closure = closure;
-        frame->fun     = closure->fun;
-        frame->ip      = closure->fun->chunk.code.data;
-    } else {
-        ObjFunction *fun = AS_FUNCTION(funobj);
-        frame->closure = NULL;
-        frame->fun     = fun;
-        frame->ip      = fun->chunk.code.data;
-    }
+    frame->closure = IS_CLOSURE(funobj) ? AS_CLOSURE(funobj) : NULL;
+    frame->fun     = fun;
+    frame->ip      = fun->chunk.code.data;
     frame->slots   = vm.sp - argc - 1;
     return true;
 }
@@ -546,6 +534,16 @@ static VMResult run()
         }
         case OP_BUILD_ARRAY: {
             u16 count = READ_SHORT();
+            Value *values = ALLOCATE(Value, count);
+            for (int i = count-1; i >= 0; i--)
+                values[i] = vm_pop();
+            ObjArray *arr = obj_make_array(count, values);
+            vm_push(VALUE_MKOBJ(arr));
+            break;
+        }
+        case OP_STACK_ARRAY: {
+            u8 start = READ_BYTE();
+            u16 count = vm.sp - &frame->slots[start];
             Value *values = ALLOCATE(Value, count);
             for (int i = count-1; i >= 0; i--)
                 values[i] = vm_pop();

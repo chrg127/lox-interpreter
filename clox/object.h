@@ -39,6 +39,7 @@ typedef struct {
     Obj obj;
     int arity;
     int upvalue_count;
+    bool is_variadic;
     Chunk chunk;
     ObjString *name;
     const char *file;

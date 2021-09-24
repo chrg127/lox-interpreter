@@ -33,6 +33,7 @@ typedef enum {
     OP_NEGATE,
     OP_CREATE_ARRAY,    // with length
     OP_BUILD_ARRAY,     // with init-list
+    OP_STACK_ARRAY,     // for variadic functions
     OP_LOAD_SUBSCRIPT,
     OP_STORE_SUBSCRIPT,
     OP_PRINT,

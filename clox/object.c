@@ -92,6 +92,7 @@ ObjFunction *obj_make_fun(ObjString *name, const char *file)
     ObjFunction *fun = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
     fun->arity         = 0;
     fun->upvalue_count = 0;
+    fun->is_variadic   = false;
     fun->name          = name;
     fun->file          = file;
     chunk_init(&fun->chunk);
