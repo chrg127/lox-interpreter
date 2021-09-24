@@ -58,5 +58,3 @@ STRING          : "\"" <any char except "\"">* "\"" ;
 IDENT           : ALPHA ( ALPHA | DIGIT )* ;
 ALPHA           : "a" ... "z" | "A" ... "Z" | "_" ;
 DIGIT           : "0" ... "9" ;
-
-

@@ -26,7 +26,7 @@
 
 typedef enum {
     PREC_NONE,
-    PREC_COMMA,    // ,
+    PREC_COMMA,     // ,
     PREC_ASSIGN,    // =
     PREC_OR,        // or
     PREC_AND,       // and
@@ -454,17 +454,6 @@ static u16 parse_var(bool is_const, const char *errmsg)
     return curr->scope_depth > 0 ? 0 : make_ident_constant(&parser.prev);
 }
 
-static void var_decl(bool is_const)
-{
-    u16 global = parse_var(is_const, "expected variable name");
-    if (match(TOKEN_EQ))
-        assignment();
-    else
-        emit_byte(OP_NIL);
-    consume(TOKEN_SEMICOLON, "expected ';' after variable declaration");
-    define_var(global);
-}
-
 static void function(FunctionType type, Token *name)
 {
     Compiler compiler;
@@ -497,14 +486,6 @@ static void function(FunctionType type, Token *name)
         emit_u16((u8)compiler.upvalues[i].is_local, compiler.upvalues[i].index);
 
     compiler_free(&compiler);
-}
-
-static void fun_decl()
-{
-    u16 global = parse_var(false, "expected function name");
-    mark_initialized();
-    function(TYPE_FUNCTION, &parser.prev);
-    define_var(global);
 }
 
 static void named_var(Token name, bool can_assign)
@@ -579,6 +560,25 @@ static void method()
     emit_u16(is_static ? OP_STATIC : OP_METHOD, constant);
 }
 
+static void var_decl(bool is_const)
+{
+    u16 global = parse_var(is_const, "expected variable name");
+    if (match(TOKEN_EQ))
+        assignment();
+    else
+        emit_byte(OP_NIL);
+    consume(TOKEN_SEMICOLON, "expected ';' after variable declaration");
+    define_var(global);
+}
+
+static void fun_decl()
+{
+    u16 global = parse_var(false, "expected function name");
+    mark_initialized();
+    function(TYPE_FUNCTION, &parser.prev);
+    define_var(global);
+}
+
 static void class_decl()
 {
     consume(TOKEN_IDENT, "expected class name");
@@ -628,13 +628,6 @@ static void decl()
         synchronize();
 }
 
-static void print_stmt()
-{
-    expr();
-    consume(TOKEN_SEMICOLON, "expected ';' after value");
-    emit_byte(OP_PRINT);
-}
-
 static void patch_branch(size_t offset)
 {
     size_t jump = curr_chunk()->code.size - offset - 2;
@@ -642,6 +635,28 @@ static void patch_branch(size_t offset)
         error("too much code to jump over");
     curr_chunk()->code.data[offset  ] =  jump       & 0xFF;
     curr_chunk()->code.data[offset+1] = (jump >> 8) & 0xFF;
+}
+
+static void compile_continue(const char *src, const char *filename)
+{
+    Scanner scanner;
+    scanner_init(&scanner, src);
+    const char *old_file = parser.file;
+    parser.file = filename;
+
+    advance();
+    while (!match(TOKEN_EOF))
+        decl();
+
+    scanner_end();
+    parser.file = old_file;
+}
+
+static void print_stmt()
+{
+    expr();
+    consume(TOKEN_SEMICOLON, "expected ';' after value");
+    emit_byte(OP_PRINT);
 }
 
 static void if_stmt()
@@ -658,6 +673,43 @@ static void if_stmt()
     if (match(TOKEN_ELSE))
         stmt();
     patch_branch(else_offset);
+}
+
+static void switch_stmt()
+{
+    consume(TOKEN_LEFT_PAREN,  "expected '(' after switch");
+    expr();
+    consume(TOKEN_RIGHT_PAREN, "expected ')' after expression");
+
+    consume(TOKEN_LEFT_BRACE, "expected '{' after ')'");
+    VecSizet case_offsets;
+    vec_size_t_init(&case_offsets);
+    size_t offset = 0;
+    while (!match(TOKEN_RIGHT_BRACE) && !match(TOKEN_DEFAULT)) {
+        if (offset != 0)
+            patch_branch(offset);
+        consume(TOKEN_CASE, "expected 'case'");
+        expr();
+        consume(TOKEN_DCOLON, "expected ':' after expression");
+        emit_byte(OP_EQ);
+        offset = emit_branch(OP_BRANCH_FALSE);
+        emit_byte(OP_POP);
+        while (!check(TOKEN_CASE) && !check(TOKEN_RIGHT_BRACE) && !check(TOKEN_DEFAULT))
+            stmt();
+        vec_size_t_write(&case_offsets, emit_branch(OP_BRANCH));
+    }
+    if (offset != 0)
+        patch_branch(offset);
+
+    if (parser.prev.type == TOKEN_DEFAULT) {
+        consume(TOKEN_DCOLON, "expected ':' after 'default'");
+        while (!match(TOKEN_RIGHT_BRACE))
+            stmt();
+    }
+
+    for (size_t i = 0; i < case_offsets.size; i++)
+        patch_branch(case_offsets.data[i]);
+    vec_size_t_free(&case_offsets);
 }
 
 static void while_stmt()
@@ -731,21 +783,6 @@ static void for_stmt()
     curr_loop = curr_loop->enclosing;
 }
 
-static void return_stmt()
-{
-    if (curr->type == TYPE_SCRIPT)
-        error("'return' statement at top level scope");
-    if (match(TOKEN_SEMICOLON))
-        emit_return();
-    else {
-        if (curr->type == TYPE_CTOR)
-            error("can't return value from constructor");
-        expr();
-        consume(TOKEN_SEMICOLON, "expected semicolon after return expression");
-        emit_byte(OP_RETURN);
-    }
-}
-
 static void continue_stmt()
 {
     if (curr_loop == NULL)
@@ -763,41 +800,32 @@ static void break_stmt()
     vec_size_t_write(&curr_loop->break_offsets, offset);
 }
 
-static void switch_stmt()
+static void include_stmt()
 {
-    consume(TOKEN_LEFT_PAREN,  "expected '(' after switch");
-    expr();
-    consume(TOKEN_RIGHT_PAREN, "expected ')' after expression");
+    consume(TOKEN_STRING, "expected \"FILENAME\" after 'include' keyword");
+    Token *name = &parser.prev;
+    char *file = malloc(name->len-1);
+    memcpy(file, name->start+1, name->len-2);
+    file[name->len-2] = '\0';
 
-    consume(TOKEN_LEFT_BRACE, "expected '{' after ')'");
-    VecSizet case_offsets;
-    vec_size_t_init(&case_offsets);
-    size_t offset = 0;
-    while (!match(TOKEN_RIGHT_BRACE) && !match(TOKEN_DEFAULT)) {
-        if (offset != 0)
-            patch_branch(offset);
-        consume(TOKEN_CASE, "expected 'case'");
+    consume(TOKEN_SEMICOLON, "expected semicolon after \"FILENAME\"");
+    const char *src  = read_file(file);
+    compile_continue(src, file);
+}
+
+static void return_stmt()
+{
+    if (curr->type == TYPE_SCRIPT)
+        error("'return' statement at top level scope");
+    if (match(TOKEN_SEMICOLON))
+        emit_return();
+    else {
+        if (curr->type == TYPE_CTOR)
+            error("can't return value from constructor");
         expr();
-        consume(TOKEN_DCOLON, "expected ':' after expression");
-        emit_byte(OP_EQ);
-        offset = emit_branch(OP_BRANCH_FALSE);
-        emit_byte(OP_POP);
-        while (!check(TOKEN_CASE) && !check(TOKEN_RIGHT_BRACE) && !check(TOKEN_DEFAULT))
-            stmt();
-        vec_size_t_write(&case_offsets, emit_branch(OP_BRANCH));
+        consume(TOKEN_SEMICOLON, "expected semicolon after return expression");
+        emit_byte(OP_RETURN);
     }
-    if (offset != 0)
-        patch_branch(offset);
-
-    if (parser.prev.type == TOKEN_DEFAULT) {
-        consume(TOKEN_DCOLON, "expected ':' after 'default'");
-        while (!match(TOKEN_RIGHT_BRACE))
-            stmt();
-    }
-
-    for (size_t i = 0; i < case_offsets.size; i++)
-        patch_branch(case_offsets.data[i]);
-    vec_size_t_free(&case_offsets);
 }
 
 static void block()
@@ -816,45 +844,17 @@ static void expr_stmt()
     }
 }
 
-static void compile_continue(const char *src, const char *filename)
-{
-    Scanner scanner;
-    scanner_init(&scanner, src);
-    const char *old_file = parser.file;
-    parser.file = filename;
-
-    advance();
-    while (!match(TOKEN_EOF))
-        decl();
-
-    scanner_end();
-    parser.file = old_file;
-}
-
-static void include_stmt()
-{
-    consume(TOKEN_STRING, "expected \"FILENAME\" after 'include' keyword");
-    Token *name = &parser.prev;
-    char *file = malloc(name->len-1);
-    memcpy(file, name->start+1, name->len-2);
-    file[name->len-2] = '\0';
-
-    consume(TOKEN_SEMICOLON, "expected semicolon after \"FILENAME\"");
-    const char *src  = read_file(file);
-    compile_continue(src, file);
-}
-
 static void stmt()
 {
          if (match(TOKEN_PRINT))    print_stmt();
     else if (match(TOKEN_IF))       if_stmt();
+    else if (match(TOKEN_SWITCH))   switch_stmt();
     else if (match(TOKEN_WHILE))    while_stmt();
     else if (match(TOKEN_FOR))      for_stmt();
-    else if (match(TOKEN_RETURN))   return_stmt();
     else if (match(TOKEN_CONTINUE)) continue_stmt();
     else if (match(TOKEN_BREAK))    break_stmt();
-    else if (match(TOKEN_SWITCH))   switch_stmt();
-    else if (match(TOKEN_INCLUDE)) include_stmt();
+    else if (match(TOKEN_RETURN))   return_stmt();
+    else if (match(TOKEN_INCLUDE))  include_stmt();
     else if (match(TOKEN_LEFT_BRACE)) {
         begin_scope();
         block();
@@ -888,23 +888,15 @@ static void expr()
     parse_precedence(PREC_COMMA);
 }
 
-static void assignment()
-{
-    parse_precedence(PREC_ASSIGN);
-}
-
 static void comma(bool can_assign)
 {
     emit_byte(OP_POP);
     parse_precedence(PREC_COMMA);
 }
 
-static void and_op(bool can_assign)
+static void assignment()
 {
-    size_t end_offset = emit_branch(OP_BRANCH_FALSE);
-    emit_byte(OP_POP);
-    parse_precedence(PREC_AND);
-    patch_branch(end_offset);
+    parse_precedence(PREC_ASSIGN);
 }
 
 static void or_op(bool can_assign)
@@ -914,6 +906,14 @@ static void or_op(bool can_assign)
     patch_branch(else_offset);
     emit_byte(OP_POP);
     parse_precedence(PREC_OR);
+    patch_branch(end_offset);
+}
+
+static void and_op(bool can_assign)
+{
+    size_t end_offset = emit_branch(OP_BRANCH_FALSE);
+    emit_byte(OP_POP);
+    parse_precedence(PREC_AND);
     patch_branch(end_offset);
 }
 
@@ -934,6 +934,18 @@ static void binary(bool can_assign)
     case TOKEN_MINUS:   emit_byte(OP_SUB); break;
     case TOKEN_STAR:    emit_byte(OP_MUL); break;
     case TOKEN_SLASH:   emit_byte(OP_DIV); break;
+    default: return; // unreachable
+    }
+}
+
+static void unary(bool can_assign)
+{
+    TokenType op = parser.prev.type;
+    parse_precedence(PREC_UNARY);
+
+    switch (op) {
+    case TOKEN_BANG:  emit_byte(OP_NOT);    break;
+    case TOKEN_MINUS: emit_byte(OP_NEGATE); break;
     default: return; // unreachable
     }
 }
@@ -976,16 +988,21 @@ static void dot(bool can_assign)
         emit_u16(OP_GET_PROPERTY, name);
 }
 
-static void unary(bool can_assign)
+static void subscript(bool can_assign)
 {
-    TokenType op = parser.prev.type;
-    parse_precedence(PREC_UNARY);
+    expr();
+    consume(TOKEN_RIGHT_SQUARE, "expected ']' after subscript expression");
+    if (can_assign && match(TOKEN_EQ)) {
+        assignment();
+        emit_byte(OP_STORE_SUBSCRIPT);
+    } else
+        emit_byte(OP_LOAD_SUBSCRIPT);
+}
 
-    switch (op) {
-    case TOKEN_BANG:  emit_byte(OP_NOT);    break;
-    case TOKEN_MINUS: emit_byte(OP_NEGATE); break;
-    default: return; // unreachable
-    }
+static void lambda(bool can_assign)
+{
+    Token name = synthetic_token("lambda");
+    function(TYPE_FUNCTION, &name);
 }
 
 static void literal(bool can_assign)
@@ -1051,25 +1068,6 @@ static void super_op(bool can_assign)
     }
 }
 
-static void lambda(bool can_assign)
-{
-    Token name = synthetic_token("lambda");
-    function(TYPE_FUNCTION, &name);
-}
-
-static void semicolon(bool can_assign) {}
-
-static void subscript(bool can_assign)
-{
-    expr();
-    consume(TOKEN_RIGHT_SQUARE, "expected ']' after subscript expression");
-    if (can_assign && match(TOKEN_EQ)) {
-        assignment();
-        emit_byte(OP_STORE_SUBSCRIPT);
-    } else
-        emit_byte(OP_LOAD_SUBSCRIPT);
-}
-
 static void array(bool can_assign)
 {
     assignment();
@@ -1088,6 +1086,8 @@ static void array(bool can_assign)
         emit_byte(OP_CREATE_ARRAY);
     }
 }
+
+static void semicolon(bool can_assign) {}
 
 static ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]  = { grouping,   call,       PREC_CALL   },

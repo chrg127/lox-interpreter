@@ -1,0 +1,70 @@
+program         : decl* EOF ;
+
+
+decl            : var_decl
+                | fun_decl
+                | class_decl
+                | stmt ;
+
+class_decl      : "class" IDENT ( "<" IDENT )? "{" ( operator_fun | "static"? function )* "}" ;
+fun_decl        : "fun" function* ;
+var_decl        : ( "const" | "var" ) IDENT ( "=" expr )? ";"
+
+operator_fun    : "operator" ( "+" | "-" | "*" | "/" | "<" | ">" | "==" | "!" | "[" "]" "="? ) funbody ;
+function        : IDENT funbody ;
+funbody         : "(" params? ")" block ;
+params          : IDENT ( "," IDENT )* ;
+
+stmt            : print_stmt
+                | if_stmt
+                | switch_stmt
+                | while_stmt
+                | for_stmt
+                | continue_stmt
+                | break_stmt
+                | return_stmt
+                | include_stmt
+                | block
+                | expr_stmt ;
+
+print_stmt      : "print" expr ";" ;
+if_stmt         : "if" "(" expr ")" stmt ( "else" stmt )? ;
+switch_stmt     : "switch" "(" expr ")" "{" switch_case* default_case? "}" ;
+while_stmt      : "while" "(" expr ")" stmt ;
+for_stmt        : "for" "(" ( var_decl | expr_stmt | ";" ) expr? ";" expr? ")" stmt ;
+continue_stmt   : "continue" ";" ;
+break_stmt      : "break" ";" ;
+return_stmt     : "return expr? ";" ;
+include_stmt    : "include" STRING ";" ;
+block           : "{" decl* "}" ;
+expr_stmt       : expr ";" | ";" ;
+
+switch_case     : "case" expr ":" stmt* ;
+default_case    : "default" ":" stmt* ;
+
+expr            : comma ;
+comma           : assignment "," assignment ;
+assignment      : ( call "." )? IDENT subscript? "=" assignment | logic_or ;
+logic_or        : logic_and ( "or" logic_and )* ;
+logic_and       : equality ( "and" equality )* ;
+equality        : comparison ( ( "!=" | "==" ) comparison )* ;
+comparison      : term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+term            : factor ( ( "-" | "+" | "&" | "|" ) factor )* ;
+factor          : unary ( ( "/" | "*" ) unary )* ;
+unary           : ( "!" | "-" ) unary | call ;
+call            : lambda ( "(" arglist? ")" | "." IDENT | subscript )* ;
+lambda          : primary | "lambda" funbody ;
+primary         : "true" | "false" | "nil" | "this"
+                | NUMBER | STRING | IDENT | "(" expr ")"
+                | "super" "." IDENT ;
+                | array ;
+
+subscript       : "[" expr "]" ;
+array           : "[" assignment ( "," assignment )? "]"
+arglist         : assignment ( "," assignment )* ;
+
+NUMBER          : DIGIT+ ( "." DIGIT+ )? ;
+STRING          : "\"" <any char except "\"">* "\"" ;
+IDENT           : ALPHA ( ALPHA | DIGIT )* ;
+ALPHA           : "a" ... "z" | "A" ... "Z" | "_" ;
+DIGIT           : "0" ... "9" ;
