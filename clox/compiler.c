@@ -562,13 +562,15 @@ static void method()
 
 static void var_decl(bool is_const)
 {
-    u16 global = parse_var(is_const, "expected variable name");
-    if (match(TOKEN_EQ))
-        assignment();
-    else
-        emit_byte(OP_NIL);
+    do {
+        u16 global = parse_var(is_const, "expected variable name");
+        if (match(TOKEN_EQ))
+            assignment();
+        else
+            emit_byte(OP_NIL);
+        define_var(global);
+    } while (match(TOKEN_COMMA));
     consume(TOKEN_SEMICOLON, "expected ';' after variable declaration");
-    define_var(global);
 }
 
 static void fun_decl()
