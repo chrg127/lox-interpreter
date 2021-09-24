@@ -4,7 +4,8 @@
 #include <stdbool.h>
 #include "object.h"
 
-ObjFunction *compile(const char *src, const char *filename);
+ObjFunction *compile(const char *src, ObjString *filename);
 void compiler_mark_roots();
+void compile_vm_end();
 
 #endif

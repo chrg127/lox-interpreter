@@ -101,6 +101,7 @@ Compiler *curr            = NULL;
 ClassCompiler *curr_class = NULL;
 LoopCompiler *curr_loop   = NULL;
 Table global_consts;
+Table filenames;
 
 
 
@@ -185,7 +186,8 @@ static bool match(TokenType type)
     return true;
 }
 
-ObjString *token_to_string(Token *name) { return obj_copy_string(name->start, name->len); }
+ObjString *token_to_string(Token *name)    { return obj_copy_string(name->start, name->len); }
+ObjString *token_to_substring(Token *name) { return obj_copy_string(name->start + 1, name->len - 2); }
 
 static Token synthetic_token(const char *text)
 {
@@ -264,15 +266,11 @@ static void compiler_init(Compiler *compiler, FunctionType type, Token *name)
     compiler->scope_depth = 0;
     // we assign NULL to function first due to garbage collection
     compiler->fun = NULL;
-    compiler->fun = obj_make_fun();
+    compiler->fun = obj_make_fun(type == TYPE_SCRIPT ? NULL : obj_copy_string(name->start, name->len), parser.file);
     // these arrays are allocated manually so that the garbage collector is not triggered on these
     compiler->locals   = calloc(LOCAL_COUNT,   sizeof(Local));
     compiler->upvalues = calloc(UPVALUE_COUNT, sizeof(Upvalue));
-
     LIST_APPEND(compiler, curr, enclosing);
-
-    if (type != TYPE_SCRIPT)
-        curr->fun->name = obj_copy_string(name->start, name->len);
 
     Local *local = &curr->locals[curr->local_count++];
     local->depth       = 0;
@@ -639,20 +637,20 @@ static void patch_branch(size_t offset)
     curr_chunk()->code.data[offset+1] = (jump >> 8) & 0xFF;
 }
 
-static void compile_continue(const char *src, const char *filename)
-{
-    Scanner scanner;
-    scanner_init(&scanner, src);
-    const char *old_file = parser.file;
-    parser.file = filename;
+// static void compile_continue(const char *src, const char *filename)
+// {
+//     Scanner scanner;
+//     scanner_init(&scanner, src);
+//     const char *old_file = parser.file;
+//     parser.file = filename;
 
-    advance();
-    while (!match(TOKEN_EOF))
-        decl();
+//     advance();
+//     while (!match(TOKEN_EOF))
+//         decl();
 
-    scanner_end();
-    parser.file = old_file;
-}
+//     scanner_end();
+//     parser.file = old_file;
+// }
 
 static void print_stmt()
 {
@@ -805,14 +803,23 @@ static void break_stmt()
 static void include_stmt()
 {
     consume(TOKEN_STRING, "expected \"FILENAME\" after 'include' keyword");
-    Token *name = &parser.prev;
-    char *file = malloc(name->len-1);
-    memcpy(file, name->start+1, name->len-2);
-    file[name->len-2] = '\0';
-
+    ObjString *file = token_to_substring(&parser.prev);
     consume(TOKEN_SEMICOLON, "expected semicolon after \"FILENAME\"");
-    const char *src  = read_file(file);
-    compile_continue(src, file);
+
+    Value garbage;
+    if (table_lookup(&filenames, file, &garbage))
+        return;
+
+    // save current token since it'll be eaten
+    Token curr = parser.curr;
+    const char *src  = read_file(file->data);
+    ObjFunction *script = compile(src, file);
+    if (script) {
+        emit_constant(VALUE_MKOBJ(script));
+        emit_two(OP_CALL, 0);
+        emit_byte(OP_POP);
+    }
+    parser.curr = curr;
 }
 
 static void return_stmt()
@@ -848,15 +855,16 @@ static void expr_stmt()
 
 static void stmt()
 {
-         if (match(TOKEN_PRINT))    print_stmt();
-    else if (match(TOKEN_IF))       if_stmt();
-    else if (match(TOKEN_SWITCH))   switch_stmt();
-    else if (match(TOKEN_WHILE))    while_stmt();
-    else if (match(TOKEN_FOR))      for_stmt();
-    else if (match(TOKEN_CONTINUE)) continue_stmt();
-    else if (match(TOKEN_BREAK))    break_stmt();
-    else if (match(TOKEN_RETURN))   return_stmt();
-    else if (match(TOKEN_INCLUDE))  include_stmt();
+         if (match(TOKEN_PRINT))     print_stmt();
+    else if (match(TOKEN_IF))        if_stmt();
+    else if (match(TOKEN_SWITCH))    switch_stmt();
+    else if (match(TOKEN_WHILE))     while_stmt();
+    else if (match(TOKEN_FOR))       for_stmt();
+    else if (match(TOKEN_CONTINUE))  continue_stmt();
+    else if (match(TOKEN_BREAK))     break_stmt();
+    else if (match(TOKEN_RETURN))    return_stmt();
+    else if (match(TOKEN_INCLUDE))   include_stmt();
+    else if (match(TOKEN_SEMICOLON)) return;
     else if (match(TOKEN_LEFT_BRACE)) {
         begin_scope();
         block();
@@ -1089,8 +1097,6 @@ static void array(bool can_assign)
     }
 }
 
-static void semicolon(bool can_assign) {}
-
 static ParseRule rules[] = {
     [TOKEN_LEFT_PAREN]  = { grouping,   call,       PREC_CALL   },
     [TOKEN_RIGHT_PAREN] = { NULL,       NULL,       PREC_NONE   },
@@ -1102,7 +1108,7 @@ static ParseRule rules[] = {
     [TOKEN_DOT]         = { NULL,       dot,        PREC_CALL   },
     [TOKEN_MINUS]       = { unary,      binary,     PREC_TERM   },
     [TOKEN_PLUS]        = { NULL,       binary,     PREC_TERM   },
-    [TOKEN_SEMICOLON]   = { semicolon,  NULL,       PREC_NONE   },
+    [TOKEN_SEMICOLON]   = { NULL,       NULL,       PREC_NONE   },
     [TOKEN_SLASH]       = { NULL,       binary,     PREC_FACTOR },
     [TOKEN_STAR]        = { NULL,       binary,     PREC_FACTOR },
     [TOKEN_QMARK]       = { NULL,       NULL,       PREC_NONE   },
@@ -1148,15 +1154,19 @@ static ParseRule *get_rule(TokenType type)
 
 /* public functions */
 
-ObjFunction *compile(const char *src, const char *filename)
+ObjFunction *compile(const char *src, ObjString *filename)
 {
     Scanner scanner;
     scanner_init(&scanner, src);
-    Compiler compiler;
-    compiler_init(&compiler, TYPE_SCRIPT, /* token = */ NULL);
+
     parser.had_error  = false;
     parser.panic_mode = false;
-    parser.file       = filename;
+    const char *old_file = parser.file;
+    parser.file       = filename->data;
+
+    Compiler compiler;
+    compiler_init(&compiler, TYPE_SCRIPT, /* token = */ NULL);
+    table_install(&filenames, filename, VALUE_MKBOOL(true));
 
     advance();
     while (!match(TOKEN_EOF))
@@ -1165,7 +1175,14 @@ ObjFunction *compile(const char *src, const char *filename)
     scanner_end();
     ObjFunction *fun = compiler_end();
     compiler_free(&compiler);
+    parser.file = old_file;
     return parser.had_error ? NULL : fun;
+}
+
+void compile_vm_end()
+{
+    table_free(&global_consts);
+    table_free(&filenames);
 }
 
 void compiler_mark_roots()
@@ -1175,4 +1192,6 @@ void compiler_mark_roots()
         gc_mark_obj((Obj *) compiler->fun);
         compiler = compiler->enclosing;
     }
+    gc_mark_table(&global_consts);
+    gc_mark_table(&filenames);
 }

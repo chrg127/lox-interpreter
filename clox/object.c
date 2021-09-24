@@ -87,12 +87,13 @@ ObjString *obj_take_string(char *data, size_t len)
     return alloc_str(data, len, hash);
 }
 
-ObjFunction *obj_make_fun()
+ObjFunction *obj_make_fun(ObjString *name, const char *file)
 {
     ObjFunction *fun = ALLOCATE_OBJ(ObjFunction, OBJ_FUNCTION);
     fun->arity         = 0;
     fun->upvalue_count = 0;
-    fun->name          = NULL;
+    fun->name          = name;
+    fun->file          = file;
     chunk_init(&fun->chunk);
     return fun;
 }

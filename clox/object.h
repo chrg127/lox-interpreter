@@ -41,6 +41,7 @@ typedef struct {
     int upvalue_count;
     Chunk chunk;
     ObjString *name;
+    const char *file;
 } ObjFunction;
 
 typedef struct {
@@ -119,7 +120,7 @@ static inline bool obj_is_type(Value value, ObjType type)
 
 ObjString *obj_copy_string(const char *str, size_t len);
 ObjString *obj_take_string(char *data, size_t len);
-ObjFunction *obj_make_fun();
+ObjFunction *obj_make_fun(ObjString *name, const char *filename);
 ObjNative *obj_make_native(NativeFn fun, const char *name, u8 arity);
 ObjUpvalue *obj_make_upvalue(Value *slot);
 ObjClosure *obj_make_closure(ObjFunction *fun);

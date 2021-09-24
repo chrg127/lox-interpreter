@@ -76,7 +76,7 @@ static void v_runtime_error(const char *fmt, va_list args)
     CallFrame *frame = &vm.frames[vm.frame_count - 1];
     size_t offset = vm.ip - frame->fun->chunk.code.data - 1;
     int line = chunk_get_line(&frame->fun->chunk, offset);
-    fprintf(stderr, "%s:%d: runtime error: ", vm.filename, line);
+    fprintf(stderr, "%s:%d: runtime error: ", frame->fun->file, line);
 
     vfprintf(stderr, fmt, args);
     fputs("\n", stderr);
@@ -89,11 +89,11 @@ static void v_runtime_error(const char *fmt, va_list args)
         CallFrame *frame = &vm.frames[i];
         ObjFunction *fun = frame->fun;
         size_t offset = frame->ip - fun->chunk.code.data - 1;
-        fprintf(stderr, "at %s:%ld in ", vm.filename, chunk_get_line(&fun->chunk, offset));
+        fprintf(stderr, "at %s:%ld in ", fun->file, chunk_get_line(&fun->chunk, offset));
         if (fun->name == NULL)
             fprintf(stderr, "<script>\n");
         else
-            fprintf(stderr, "<%s()>\n", fun->name->data);
+            fprintf(stderr, "<%s>\n", fun->name->data);
     }
 
     reset_stack();
@@ -760,11 +760,12 @@ void vm_free()
     obj_free_arr(vm.objects);
     vm.init_string = NULL;
     free(vm.gray_stack.stack);
+    compile_vm_end();
 }
 
 VMResult vm_interpret(const char *src, const char *filename)
 {
-    ObjFunction *fun = compile(src, filename);
+    ObjFunction *fun = compile(src, obj_copy_string(filename, strlen(filename)));
     if (!fun)
         return VM_COMPILE_ERROR;
     vm_push(VALUE_MKOBJ(fun));
@@ -772,7 +773,6 @@ VMResult vm_interpret(const char *src, const char *filename)
     vm_pop();
     vm_push(VALUE_MKOBJ(closure));
     call_generic(VALUE_MKOBJ(closure), 0);
-    vm.filename = filename;
 
 #ifdef DEBUG_TRACE_EXECUTION
     printf("=== running VM ===\n");

@@ -33,8 +33,6 @@ typedef struct {
     Table strings;                  // interned strings; see alloc_str()
     Obj *objects;                   // linked list of all allocated object; see alloc_obj()
     ObjUpvalue *open_upvalues;      // sorted linked list of upvalues that still point to a variable on the stack
-
-    const char *filename;           // name of file passed by argv, or "script" if none
     ObjString *init_string;         // interned string "init" for fast ctor access
 
     size_t bytes_allocated;
