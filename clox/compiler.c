@@ -469,8 +469,16 @@ static void function(FunctionType type, Token *name)
         } while (match(TOKEN_COMMA));
     }
     consume(TOKEN_RIGHT_PAREN, "expected ')' after function parameters");
-    consume(TOKEN_LEFT_BRACE, "expected '{' before function body");
-    block();
+
+    if (match(TOKEN_LEFT_BRACE))
+        block();
+    else if (match(TOKEN_EQ)) {
+        if (curr->type == TYPE_CTOR)
+            error("can't use short form functions for defining constructors");
+        expr();
+        emit_byte(OP_RETURN);
+    } else
+        error("expected '{' or '=' after argument list");
 
     ObjFunction *fun = compiler_end();
 
