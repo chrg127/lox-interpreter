@@ -255,9 +255,10 @@ static void close_upvalues(Value *last)
     }
 }
 
-static bool define_method(ObjString *name)
+static bool define_method()
 {
     Value method = peek(0);
+    ObjString *name = IS_CLOSURE(method) ? AS_CLOSURE(method)->fun->name : AS_FUNCTION(method)->name;
     ObjClass *klass = AS_CLASS(peek(1));
     if (!table_install(&klass->methods, name, method)) {
         runtime_error("redefinition of method '%s' for class '%s'", name->data, klass->name->data);
@@ -269,12 +270,13 @@ static bool define_method(ObjString *name)
     return true;
 }
 
-static bool define_static_method(ObjString *name)
+static bool define_static_method()
 {
     Value method = peek(0);
+    ObjString *name = IS_CLOSURE(method) ? AS_CLOSURE(method)->fun->name : AS_FUNCTION(method)->name;
     ObjClass *klass = AS_CLASS(peek(1));
     if (!table_install(&klass->statics, name, method)) {
-        runtime_error("redefinition of method '%s' for class '%s'", name->data, klass->name->data);
+        runtime_error("redefinition of static function '%s' for class '%s'", name->data, klass->name->data);
         return false;
     }
     vm_pop();
@@ -698,11 +700,11 @@ static VMResult run()
             vm_push(VALUE_MKOBJ(obj_make_class(READ_STRING())));
             break;
         case OP_METHOD:
-            if (!define_method(READ_STRING()))
+            if (!define_method())
                 return VM_RUNTIME_ERROR;
             break;
         case OP_STATIC:
-            if (!define_static_method(READ_STRING()))
+            if (!define_static_method())
                 return VM_RUNTIME_ERROR;
             break;
         case OP_INHERIT: {

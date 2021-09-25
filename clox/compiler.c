@@ -27,6 +27,7 @@
 typedef enum {
     PREC_NONE,
     PREC_COMMA,     // ,
+    PREC_COND,      // ?
     PREC_ASSIGN,    // =
     PREC_OR,        // or
     PREC_AND,       // and
@@ -525,43 +526,40 @@ static void named_var(Token name, bool can_assign)
         emit_u16(getop, arg);
 }
 
-static u16 property_name(Token *out, const char *msg)
+static Token property_name(const char *msg)
 {
     if (match(TOKEN_OPERATOR)) {
         advance();
         switch (parser.prev.type) {
-        case TOKEN_PLUS:    *out = synthetic_token("operator+"); return make_ident_constant(out);
-        case TOKEN_MINUS:   *out = synthetic_token("operator-"); return make_ident_constant(out);
-        case TOKEN_STAR:    *out = synthetic_token("operator*"); return make_ident_constant(out);
-        case TOKEN_SLASH:   *out = synthetic_token("operator/"); return make_ident_constant(out);
-        case TOKEN_GREATER: *out = synthetic_token("operator>"); return make_ident_constant(out);
-        case TOKEN_LESS:    *out = synthetic_token("operator<"); return make_ident_constant(out);
-        case TOKEN_EQ_EQ:   *out = synthetic_token("operator=="); return make_ident_constant(out);
-        case TOKEN_BANG:    *out = synthetic_token("operator!"); return make_ident_constant(out);
+        case TOKEN_PLUS:    return synthetic_token("operator+");
+        case TOKEN_MINUS:   return synthetic_token("operator-");
+        case TOKEN_STAR:    return synthetic_token("operator*");
+        case TOKEN_SLASH:   return synthetic_token("operator/");
+        case TOKEN_GREATER: return synthetic_token("operator>");
+        case TOKEN_LESS:    return synthetic_token("operator<");
+        case TOKEN_EQ_EQ:   return synthetic_token("operator==");
+        case TOKEN_BANG:    return synthetic_token("operator!");
         case TOKEN_LEFT_SQUARE:
             consume(TOKEN_RIGHT_SQUARE, "unmatched '[' in operator method");
-            *out = synthetic_token(match(TOKEN_EQ) ? "operator[]=" : "operator[]");
-            return make_ident_constant(out);
+            return synthetic_token(match(TOKEN_EQ) ? "operator[]=" : "operator[]");
         default:
             error("not a supported operator for overloading");
-            return 0;
+            return synthetic_token("ERROR");
         }
     }
     consume(TOKEN_IDENT, msg);
-    *out = parser.prev;
-    return make_ident_constant(out);
+    return parser.prev;
 }
 
 static void method()
 {
     bool is_static = match(TOKEN_STATIC) || check(TOKEN_OPERATOR);
-    Token name;
-    u16 constant = property_name(&name, "expected method name");
+    Token name = property_name("expected method name");
     FunctionType type = is_static ? TYPE_STATIC : TYPE_METHOD;
     if (!is_static && parser.prev.len == 4 && memcmp(parser.prev.start, "init", 4) == 0)
         type = TYPE_CTOR;
     function(type, &name);
-    emit_u16(is_static ? OP_STATIC : OP_METHOD, constant);
+    emit_byte(is_static ? OP_STATIC : OP_METHOD);
 }
 
 static void var_decl(bool is_const)
@@ -915,6 +913,18 @@ static void assignment()
     parse_precedence(PREC_ASSIGN);
 }
 
+static void cond(bool can_assign)
+{
+    size_t then_offset = emit_branch(OP_BRANCH_FALSE);
+    emit_byte(OP_POP);
+    assignment();
+    consume(TOKEN_DCOLON, "expected ':' after left branch of '?'");
+    size_t else_offset = emit_branch(OP_BRANCH);
+    patch_branch(then_offset);
+    assignment();
+    patch_branch(else_offset);
+}
+
 static void or_op(bool can_assign)
 {
     size_t else_offset = emit_branch(OP_BRANCH_FALSE);
@@ -991,8 +1001,8 @@ static void call(bool can_assign)
 
 static void dot(bool can_assign)
 {
-    Token garbage;
-    u16 name = property_name(&garbage, "expected property name after '.'");
+    Token t = property_name("expected property name after '.'");
+    u16 name = make_ident_constant(&t);
     if (can_assign && match(TOKEN_EQ)) {
         assignment();
         emit_u16(OP_SET_PROPERTY, name);
@@ -1117,7 +1127,7 @@ static ParseRule rules[] = {
     [TOKEN_SEMICOLON]   = { NULL,       NULL,       PREC_NONE   },
     [TOKEN_SLASH]       = { NULL,       binary,     PREC_FACTOR },
     [TOKEN_STAR]        = { NULL,       binary,     PREC_FACTOR },
-    [TOKEN_QMARK]       = { NULL,       NULL,       PREC_NONE   },
+    [TOKEN_QMARK]       = { NULL,       cond,       PREC_COND   },
     [TOKEN_DCOLON]      = { NULL,       NULL,       PREC_NONE   },
     [TOKEN_BANG]        = { unary,      NULL,       PREC_NONE   },
     [TOKEN_BANG_EQ]     = { NULL,       binary,     PREC_EQ     },

@@ -51,13 +51,13 @@ static ObjString *alloc_str(char *data, size_t len, u32 hash)
     return str;
 }
 
-static void print_function(ObjFunction *fun)
+static void print_function(ObjFunction *fun, bool is_closure)
 {
     if (fun->name == NULL) {
         printf("<script>");
         return;
     }
-    printf("<fn %s>", fun->name->data);
+    printf("<fn %s%s>", fun->name->data, is_closure ? " (closure)" : "");
 }
 
 
@@ -171,9 +171,9 @@ void obj_print(Value value, bool debug)
 {
     switch (OBJ_TYPE(value)) {
     case OBJ_STRING:    printf(debug ? "\"%s\"" : "%s", AS_STRING(value)->data); break;
-    case OBJ_FUNCTION:  print_function(AS_FUNCTION(value)); break;
+    case OBJ_FUNCTION:  print_function(AS_FUNCTION(value), false); break;
     case OBJ_NATIVE:    printf("<native fn '%s'>", ((ObjNative *)AS_OBJ(value))->name); break;
-    case OBJ_CLOSURE:   print_function(AS_CLOSURE(value)->fun); break;
+    case OBJ_CLOSURE:   print_function(AS_CLOSURE(value)->fun, true); break;
     case OBJ_UPVALUE:   printf("upvalue"); break;
     case OBJ_CLASS:
         printf("<class ");
