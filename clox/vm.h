@@ -53,7 +53,7 @@ typedef enum {
 
 void vm_init();
 void vm_free();
-VMResult vm_interpret(const char *src, const char *filename);
+VMResult vm_interpret(const char *src, const char *filename, bool show_bytecode);
 void native_runtime_error(const char *fn, const char *fmt, ...);
 void vm_push(Value value);
 Value vm_pop();

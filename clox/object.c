@@ -53,11 +53,10 @@ static ObjString *alloc_str(char *data, size_t len, u32 hash)
 
 static void print_function(ObjFunction *fun, bool is_closure)
 {
-    if (fun->name == NULL) {
-        printf("<script>");
-        return;
-    }
-    printf("<fn %s%s>", fun->name->data, is_closure ? " (closure)" : "");
+    if (fun->name == NULL)
+        printf("<%s>", fun->file);
+    else
+        printf("<fn %s%s>", fun->name->data, is_closure ? " (closure)" : "");
 }
 
 
@@ -281,7 +280,7 @@ u32 obj_hash(Obj *obj)
 
 static inline Value fun_tostring(ObjFunction *fun)
 {
-    return fun->name == NULL ? obj_make_ssostring("<script>", 8)
+    return fun->name == NULL ? obj_make_ssostring(fun->file, strlen(fun->file))
                              : VALUE_MKOBJ(fun->name);
 }
 

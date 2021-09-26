@@ -7,5 +7,6 @@
 ObjFunction *compile(const char *src, ObjString *filename);
 void compiler_mark_roots();
 void compile_vm_end();
+void compiler_enable_print_code();
 
 #endif

@@ -89,11 +89,11 @@ static void v_runtime_error(const char *fmt, va_list args)
         CallFrame *frame = &vm.frames[i];
         ObjFunction *fun = frame->fun;
         size_t offset = frame->ip - fun->chunk.code.data - 1;
-        fprintf(stderr, "at %s:%ld in ", fun->file, chunk_get_line(&fun->chunk, offset));
+        fprintf(stderr, "at %s:%ld ", fun->file, chunk_get_line(&fun->chunk, offset));
         if (fun->name == NULL)
-            fprintf(stderr, "<script>\n");
+            fprintf(stderr, "at top level\n");
         else
-            fprintf(stderr, "<%s>\n", fun->name->data);
+            fprintf(stderr, "inside <%s>\n", fun->name->data);
     }
 
     reset_stack();
@@ -530,6 +530,10 @@ static VMResult run()
                 runtime_error("length must be a number value");
                 return VM_RUNTIME_ERROR;
             }
+            if (AS_NUM(length) == 0) {
+                runtime_error("trying to create an array of length 0");
+                return VM_RUNTIME_ERROR;
+            }
             ObjArray *arr = obj_make_array((size_t)AS_NUM(length), NULL);
             vm_push(VALUE_MKOBJ(arr));
             break;
@@ -763,8 +767,10 @@ void vm_free()
     compile_vm_end();
 }
 
-VMResult vm_interpret(const char *src, const char *filename)
+VMResult vm_interpret(const char *src, const char *filename, bool show_bytecode)
 {
+    if (show_bytecode)
+        compiler_enable_print_code();
     ObjFunction *fun = compile(src, obj_copy_string(filename, strlen(filename)));
     if (!fun)
         return VM_COMPILE_ERROR;

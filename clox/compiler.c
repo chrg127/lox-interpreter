@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
+#include <errno.h>
 #include "chunk.h"
 #include "scanner.h"
 #include "object.h"
@@ -12,10 +13,7 @@
 #include "debug.h"
 #include "list.h"
 #include "util.h"
-
-#ifdef DEBUG_PRINT_CODE
 #include "disassemble.h"
-#endif
 
 #define LOCAL_COUNT     UINT16_COUNT
 #define UPVALUE_COUNT   LOCAL_COUNT
@@ -103,7 +101,7 @@ ClassCompiler *curr_class = NULL;
 LoopCompiler *curr_loop   = NULL;
 Table global_consts;
 Table filenames;
-
+bool print_code = false;
 
 
 /* error handling */
@@ -289,10 +287,8 @@ static ObjFunction *compiler_end()
 {
     emit_return();
     ObjFunction *fun = curr->fun;
-#ifdef DEBUG_PRINT_CODE
-    if (!parser.had_error)
-        disassemble(curr_chunk(), fun->name != NULL ? fun->name->data : "<script>");
-#endif
+    if (!parser.had_error && (DEBUG_PRINT_CODE || print_code))
+        disassemble(curr_chunk(), fun->name != NULL ? fun->name->data : fun->file);
     curr = curr->enclosing;
     return fun;
 }
@@ -641,21 +637,6 @@ static void patch_branch(size_t offset)
     curr_chunk()->code.data[offset+1] = (jump >> 8) & 0xFF;
 }
 
-// static void compile_continue(const char *src, const char *filename)
-// {
-//     Scanner scanner;
-//     scanner_init(&scanner, src);
-//     const char *old_file = parser.file;
-//     parser.file = filename;
-
-//     advance();
-//     while (!match(TOKEN_EOF))
-//         decl();
-
-//     scanner_end();
-//     parser.file = old_file;
-// }
-
 static void print_stmt()
 {
     expr();
@@ -816,7 +797,13 @@ static void include_stmt()
 
     // save current token since it'll be eaten
     Token curr = parser.curr;
-    const char *src  = read_file(file->data);
+    char *src  = read_file(file->data);
+    if (!src) {
+        fprintf(stderr, "%s:%d: 'include' error: \"%s\": %s\n",
+            parser.file, parser.prev.line, file->data, strerror(errno));
+        parser.had_error = true;
+        return;
+    }
     ObjFunction *script = compile(src, file);
     if (script) {
         emit_constant(VALUE_MKOBJ(script));
@@ -824,6 +811,7 @@ static void include_stmt()
         emit_byte(OP_POP);
     }
     parser.curr = curr;
+    free(src);
 }
 
 static void return_stmt()
@@ -1195,12 +1183,6 @@ ObjFunction *compile(const char *src, ObjString *filename)
     return parser.had_error ? NULL : fun;
 }
 
-void compile_vm_end()
-{
-    table_free(&global_consts);
-    table_free(&filenames);
-}
-
 void compiler_mark_roots()
 {
     Compiler *compiler = curr;
@@ -1211,3 +1193,11 @@ void compiler_mark_roots()
     gc_mark_table(&global_consts);
     gc_mark_table(&filenames);
 }
+
+void compile_vm_end()
+{
+    table_free(&global_consts);
+    table_free(&filenames);
+}
+
+void compiler_enable_print_code() { print_code = true; }

@@ -1,15 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "vm.h"
 #include "util.h"
 
+static char line[BUFSIZ];
+static bool show_bytecode = false;
+
 static void repl()
 {
-    char line[1024];
     char *s;
 
     for (;;) {
-        printf("> ");
+        printf(">>> ");
 
         // exit condition
         if (s = fgets(line, sizeof(line), stdin), s == NULL) {
@@ -19,14 +22,20 @@ static void repl()
 
         // interpret only if line isn't empty
         if (!(s[0] == '\n' && s[1] == '\0'))
-            vm_interpret(line, "stdin");
+            vm_interpret(line, "stdin", show_bytecode);
     }
 }
 
 static void run_file(const char *path)
 {
     char *src = read_file(path);
-    VMResult result = vm_interpret(src, path);
+    if (!src) {
+        fprintf(stderr, "error while opening file \"%s\": ", path);
+        perror("");
+        exit(1);
+    }
+
+    VMResult result = vm_interpret(src, path, show_bytecode);
     free(src);
 
     if (result == VM_COMPILE_ERROR)
@@ -35,19 +44,45 @@ static void run_file(const char *path)
         exit(3);
 }
 
+void usage(int status)
+{
+    fprintf(stderr, "usage: lox [file]\n"
+                    "valid flags:\n"
+                    "   -h: show this help text\n"
+                    "   -s: show bytecode output\n");
+    vm_free();
+    exit(status);
+}
+
 int main(int argc, char *argv[])
 {
     vm_init();
 
-    if (argc == 1)
-        repl();
-    else if (argc == 2)
-        run_file(argv[1]);
-    else {
-        fprintf(stderr, "usage: clox [file]\n");
-        vm_free();
-        return 1;
+    char *file = NULL;
+    while (++argv, --argc > 0) {
+        if (argv[0][0] == '-' && strlen(argv[0]) == 2) {
+            switch (argv[0][1]) {
+            case 'h':
+                usage(0);
+                break;
+            case 's':
+                show_bytecode = true;
+                break;
+            default:
+                fprintf(stderr, "error: unrecognized flag: -%c", argv[0][1]);
+            }
+            continue;
+        }
+
+        if (file != NULL)
+            usage(1);
+        file = argv[0];
     }
+
+    if (!file)
+        repl();
+    else
+        run_file(file);
 
     vm_free();
 
