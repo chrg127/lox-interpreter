@@ -1082,22 +1082,55 @@ static void super_op(bool can_assign)
     }
 }
 
+static void dump_elems(ValueArray *elems)
+{
+    for (size_t i = 0; i < elems->size; i++)
+        emit_constant(elems->values[i]);
+    valuearray_free(elems);
+}
+
 static void array(bool can_assign)
 {
-    assignment();
-    if (match(TOKEN_COMMA)) {
+    bool is_constant_array = true;
+    ValueArray elems;
+    valuearray_init(&elems);
+
+    if (match(TOKEN_NUMBER))
+        valuearray_write(&elems, VALUE_MKNUM(strtod(parser.prev.start, NULL)));
+    else {
+        is_constant_array = false;
+        assignment();
+    }
+
+    if (!match(TOKEN_COMMA)) {
+        consume(TOKEN_RIGHT_SQUARE, "expected ']' after array length");
+        dump_elems(&elems);
+        emit_byte(OP_CREATE_ARRAY);
+    } else {
         int count = 1;
         do {
-            assignment();
             if (count == ARRAY_ELEM_MAX)
                 error("too many elements in array initializer");
             count++;
+
+            if (is_constant_array) {
+                if (match(TOKEN_NUMBER))
+                    valuearray_write(&elems, VALUE_MKNUM(strtod(parser.prev.start, NULL)));
+                else {
+                    is_constant_array = false;
+                    dump_elems(&elems);
+                    assignment();
+                }
+            } else
+                assignment();
+
         } while (match(TOKEN_COMMA));
-        consume(TOKEN_RIGHT_SQUARE, "expected ']' after array length expression");
-        emit_u16(OP_BUILD_ARRAY, count);
-    } else {
-        consume(TOKEN_RIGHT_SQUARE, "expected ']' after array length expression");
-        emit_byte(OP_CREATE_ARRAY);
+
+        consume(TOKEN_RIGHT_SQUARE, "expected ']' at end of array initializer");
+        if (is_constant_array)
+            emit_constant(VALUE_MKOBJ(obj_make_array(elems.size, elems.values)));
+        else
+            emit_u16(OP_BUILD_ARRAY, count);
     }
 }
 

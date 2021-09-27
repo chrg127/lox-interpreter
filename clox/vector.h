@@ -81,14 +81,24 @@ typedef struct {
     size_t cap;
 } VecSizet;
 
-VECTOR_DECLARE_INIT(VecU8, u8, vec_u8);
-VECTOR_DECLARE_WRITE(VecU8, u8, vec_u8);
-VECTOR_DECLARE_FREE(VecU8, u8, vec_u8);
+typedef struct {
+    double *data;
+    size_t size;
+    size_t cap;
+} VecDouble;
+
+VECTOR_DECLARE_INIT(  VecU8, u8, vec_u8);
+VECTOR_DECLARE_WRITE( VecU8, u8, vec_u8);
+VECTOR_DECLARE_FREE(  VecU8, u8, vec_u8);
 VECTOR_DECLARE_SEARCH(VecU8, u8, vec_u8);
 VECTOR_DECLARE_DELETE(VecU8, u8, vec_u8);
 
-VECTOR_DECLARE_INIT(VecSizet, size_t, vec_size_t);
-VECTOR_DECLARE_WRITE(VecSizet, size_t,vec_size_t);
-VECTOR_DECLARE_FREE(VecSizet, size_t, vec_size_t);
+VECTOR_DECLARE_INIT( VecSizet, size_t, vec_size_t);
+VECTOR_DECLARE_WRITE(VecSizet, size_t, vec_size_t);
+VECTOR_DECLARE_FREE( VecSizet, size_t, vec_size_t);
+
+VECTOR_DECLARE_INIT( VecDouble, double, vec_double);
+VECTOR_DECLARE_WRITE(VecDouble, double, vec_double);
+VECTOR_DECLARE_FREE( VecDouble, double, vec_double);
 
 #endif
