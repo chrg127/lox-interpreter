@@ -1,0 +1,32 @@
+fun grow_cap(n) = n < 8 ? 8 : n*2
+
+class Vector {
+    init()
+    {
+        this._data = nil;
+        this._size  = 0;
+        this._cap   = 0;
+    }
+
+    _grow()
+    {
+        var oldlen = this._cap;
+        this._cap = grow_cap(this._cap);
+        var newdata = [this._cap];
+        for (var i = 0; i < oldlen; i = i+1)
+            newdata[i] = this._data;
+        this._data = newdata;
+    }
+
+    append(x)
+    {
+        if (this._size == this._cap)
+            this._grow();
+        this._data[this._size] = x;
+        this._size = this._size + 1;
+    }
+
+    size() = this._size
+    operator[](a, i) = a._data[i]
+    operator[]=(a, i, x) = a._data[i] = x
+}

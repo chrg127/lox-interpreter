@@ -1,0 +1,11 @@
+include "vector.lox";
+
+fun format(fmt, args...) {
+    print fmt;
+}
+
+var v1 = Vector();
+v1.append(1);
+v1.append("hello");
+for (var i = 0; i < v1.size(); i = i+1)
+    print str(i) + ": " + str(v1[i]);
